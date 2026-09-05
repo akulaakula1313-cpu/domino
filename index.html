@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ДОМИНО от SANI GROUP</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <audio id="bgMusic" loop src="bg-music.mp3"></audio>
+    <canvas id="fxCanvas"></canvas>
+
+    <div id="menuScreen" class="container-box">
+        <h1>ДОМИНО от SANI GROUP</h1>
+        <div class="creator-tag" onclick="openAboutModal()">ИНФОРМАЦИЯ О СТУДИИ ℹ️</div>
+        
+        <button class="menu-btn" onclick="startGame('bot')">🤖 ИГРАТЬ С БОТОМ</button>
+        <button class="menu-btn" onclick="createOnlineRoom()">✨ СОЗДАТЬ СТОЛ (ONLINE)</button>
+        
+        <div class="input-group">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" id="roomCodeInput" class="code-input" placeholder="ВВЕДИТЕ 4 ЦИФРЫ КОДА" maxlength="4">
+            <button class="menu-btn secondary" onclick="joinOnlineRoom()">🔌 ПОДКЛЮЧИТЬСЯ К СТОЛУ</button>
+        </div>
+
+        <button class="menu-btn secondary" style="margin-top: 20px;" onclick="toggleRules()">📜 ПРАВИЛА ИГРЫ</button>
+        
+        <div id="rulesPanel" class="rules-panel">
+            <h3 style="margin-top:0; color:var(--accent-gold);">Правила игры («Козёл»):</h3>
+            • Каждому игроку раздается по 7 костяшек.<br>
+            • Ходы делаются по очереди. Нужно состыковать цифру кости с одним из краев змейки на поле.<br>
+            • <b>Базар:</b> Если ходить нечем, вы обязаны тянуть кости из базара, пока не найдете нужную.<br>
+            • <b>Пас:</b> Если базар пуст, а ходить нечем, нажимайте кнопку «ПАС».<br>
+            • <b>Рыба:</b> Блокировка поля, когда ходить не может никто. Побеждает тот, у кого меньше очков в руке.
+        </div>
+    </div>
+
+    <div id="waitingScreen" class="container-box" style="display: none;">
+        <h1>СТОЛ СОЗДАН</h1>
+        <div class="creator-tag">by SANI GROUP</div>
+        <p style="color: #a1a1aa; margin-bottom: 5px;">Передайте этот цифровой код другу:</p>
+        
+        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 15px 0;">
+            <div id="generatedCode" class="room-code-display" style="margin:0;">----</div>
+            <button onclick="copyRoomCode()" style="background: #27272a; border: 1px solid #eab308; color: #fef08a; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px;">📋 СКОПИРОВАТЬ</button>
+        </div>
+        
+        <p style="color: #fde047; font-size: 14px; font-weight: bold;">Ожидание подключения соперника...</p>
+        <button class="menu-btn secondary" onclick="backToMenu()">ОТМЕНА</button>
+    </div>
+
+    <div id="gameScreen" class="game-wrapper">
+        <div class="vs-panel">
+            <div class="player-card">
+                <div class="player-avatar">👑</div>
+                <div class="player-name" id="p1Name">ВЫ</div>
+            </div>
+            <div id="bazarCounter" style="color: #eab308; font-weight: bold; font-size: 14px; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 8px;">БАЗАР: 14</div>
+            <div class="player-card">
+                <div class="player-avatar">👑</div>
+                <div class="player-name" id="p2Name">СОПЕРНИК</div>
+            </div>
+        </div>
+
+        <div id="statusUpdate" style="margin-bottom: 10px; font-weight: bold; color: #fde047; font-size: 14px;"></div>
+
+        <div class="board-container">
+            <canvas id="boardCanvas" width="400" height="400"></canvas>
+        </div>
+
+        <div id="dominoActions" style="display: flex; gap: 10px; width: 100%; margin-top: 10px;">
+            <button class="menu-btn" style="margin:0; padding:10px;" onclick="takeFromBazar()">🎰 ВЗЯТЬ ИЗ БАЗАРА</button>
+            <button class="menu-btn secondary" style="margin:0; padding:10px;" onclick="passTurn()">🏳️ ПАС</button>
+        </div>
+
+        <div class="chat-box" id="chatBox">
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="emoji-bar">
+                <button class="emoji-btn" onclick="sendQuickEmoji('👍')">👍</button>
+                <button class="emoji-btn" onclick="sendQuickEmoji('🔥')">🔥</button>
+                <button class="emoji-btn" onclick="sendQuickEmoji('😂')">😂</button>
+                <button class="emoji-btn" onclick="sendQuickEmoji('🤝')">🤝</button>
+                <button class="emoji-btn" onclick="sendQuickEmoji('🐟')">🐟</button>
+                <button class="emoji-btn" onclick="sendQuickEmoji('😎')">😎</button>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" id="chatInput" placeholder="Сообщение...">
+                <button onclick="sendChatMessage()">ОТПРАВИТЬ</button>
+            </div>
+        </div>
+
+        <div class="controls-row">
+            <button class="ui-btn" onclick="backToMenu()" title="В меню">☰</button>
+            <button class="ui-btn" id="musicToggleBtn" onclick="toggleMusic()" title="Вкл/Выкл Музыку">🎵</button>
+            <button class="ui-btn" onclick="toggleChat()" title="Чат">💬</button>
+        </div>
+    </div>
+
+    <div id="gameOverScreen" class="modal-screen">
+        <div class="container-box" style="background: #1c1917;">
+            <div id="resultTitle" class="result-title">КОНЕЦ ИГРЫ</div>
+            <p id="resultText" style="color: #a8a29e; margin-bottom: 25px;">Партия завершена</p>
+            <p id="resultReason" style="color: #eab308; font-weight: bold; margin-bottom: 20px;"></p>
+            <button class="menu-btn" id="rematchBtn" onclick="requestRematch()">🔄 НОВАЯ ИГРА</button>
+            <button class="menu-btn secondary" onclick="backToMenu()">🚪 ВЫЙТИ В МЕНЮ</button>
+        </div>
+    </div>
+
+    <div id="aboutModal" class="about-modal">
+        <div class="about-card">
+            <button class="about-close" onclick="closeAboutModal()">✕</button>
+            <div class="suits">♠ ♥ ♦ ♣</div>
+            <div class="about-title">SANI GROUP</div>
+            <div class="about-subtitle">Команда основателей и разработчиков</div>
+            <div class="about-desc">
+                Мы создали эту интерактивную версию культовой настольной игры ДОМИНО, чтобы вы могли с максимальным комфортом играть по сети с друзьями по всему миру или тренироваться в битвах с умными ботами.
+            </div>
+            <div class="features-row">
+                <div class="feature-badge">⚡ Стабильный сокет</div>
+                <div class="feature-badge">🎨 Стильный дизайн</div>
+                <div class="feature-badge">⚙️ Честные правила</div>
+            </div>
+            <div class="copyright">© SANI GROUP Studio. Все права защищены.</div>
+        </div>
+    </div>
+
+    <script src="client.js?v=3.0"></script>
+    <script>
+        function toggleRules() {
+            const panel = document.getElementById('rulesPanel');
+            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+        }
+        function createOnlineRoom() {
+            document.getElementById('menuScreen').style.display = 'none';
+            document.getElementById('waitingScreen').style.display = 'block';
+            ws.send(JSON.stringify({ type: 'CREATE_ROOM' }));
+        }
+        function joinOnlineRoom() {
+            const code = document.getElementById('roomCodeInput').value.trim();
+            if(code.length !== 4) { alert('Введите 4 цифры кода стола!'); return; }
+            ws.send(JSON.stringify({ type: 'JOIN_ROOM', roomCode: code }));
+        }
+        function openAboutModal() { document.getElementById('aboutModal').style.display = 'flex'; }
+        function closeAboutModal() { document.getElementById('aboutModal').style.display = 'none'; }
+        function copyRoomCode() {
+            const codeText = document.getElementById('generatedCode').innerText;
+            if(codeText === '----') return;
+            navigator.clipboard.writeText(codeText).then(() => {
+                alert('Цифровой код стола успешно скопирован: ' + codeText);
+            }).catch(err => { console.error(err); });
+        }
+    </script>
+</body>
+</html>
