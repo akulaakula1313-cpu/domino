@@ -36,6 +36,11 @@ function resizeFxCanvas() {
 window.addEventListener('resize', resizeFxCanvas);
 resizeFxCanvas();
 
+ws.onclose = () => {
+    statusUpdate.innerText = "⚠️ Связь прервана! Перезагрузите страницу.";
+    statusUpdate.style.color = "#ef4444";
+};
+
 function toggleMusic() {
     if (bgMusic.paused) {
         bgMusic.play().catch(e => console.log(e));
@@ -75,7 +80,7 @@ function playErrorSound() {
 function playWinSound() {
     try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        [523.25, 659.25, 783.99].forEach((f, idx) => {
+        [523, 659, 783].forEach((f, idx) => {
             let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
             osc.frequency.value = f; gain.gain.setValueAtTime(0.06, audioCtx.currentTime + idx*0.05);
             gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
@@ -105,7 +110,11 @@ function sendQuickEmoji(emoji) { ws.send(JSON.stringify({ type: 'CHAT_MSG', text
 
 function takeFromBazar() { ws.send(JSON.stringify({ type: 'TAKE_BAZAR' })); }
 function passTurn() { ws.send(JSON.stringify({ type: 'PASS_TURN' })); }
-function requestRematch() { ws.send(JSON.stringify({ type: 'REQUEST_REMATCH' })); }
+function requestRematch() { 
+    rematchBtn.innerText = '⏳ ОЖИДАНИЕ ОТВЕТА...';
+    rematchBtn.style.background = '#4b5563';
+    ws.send(JSON.stringify({ type: 'REQUEST_REMATCH' })); 
+}
 
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
@@ -119,6 +128,9 @@ ws.onmessage = (event) => {
         gameOverScreen.style.display = 'none';
         gameScreen.style.display = 'flex';
         stopFireworks();
+        
+        rematchBtn.innerText = '🔄 НОВАЯ ИГРА';
+        rematchBtn.style.background = '';
 
         myHand = data.hand;
         tableLine = data.line;
@@ -136,7 +148,12 @@ ws.onmessage = (event) => {
         playErrorSound();
     } else if (data.type === 'CHAT_MSG') {
         const msgContainer = document.createElement('div');
-        msgContainer.innerHTML = '<b>' + data.sender + ':</b> ' + data.text;
+        const b = document.createElement('b');
+        b.textContent = data.sender + ': ';
+        const span = document.createElement('span');
+        span.textContent = data.text;
+        msgContainer.appendChild(b);
+        msgContainer.appendChild(span);
         chatMessages.appendChild(msgContainer);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     } else if (data.type === 'GAME_OVER') {
@@ -153,6 +170,7 @@ ws.onmessage = (event) => {
         rematchBtn.style.background = 'linear-gradient(to bottom, #10b981, #047857)'; 
     } else if (data.type === 'OPPONENT_DISCONNECTED') {
         statusUpdate.innerText = 'Соперник покинул игру.';
+        statusUpdate.style.color = "#ef4444";
     }
 };
 
@@ -164,11 +182,10 @@ canvas.addEventListener('click', (e) => {
     const clientY = e.clientY - rect.top;
     const scaleX = virtualSize / rect.width;
     const scaleY = virtualSize / rect.height;
-    const vx = clientX * scaleX;
-    const vy = clientY * scaleY;
+    const vx = Math.floor(clientX * scaleX);
+    const vy = Math.floor(clientY * scaleY);
 
-    // Нижняя зона (рука игрока)
-    if (vy > 320) {
+    if (vy >= 325 && vy <= 395) {
         let bCount = myHand.length;
         let bWidth = 35; let bGap = 6;
         let startX = (virtualSize - (bCount * bWidth + (bCount - 1) * bGap)) / 2;
@@ -176,49 +193,54 @@ canvas.addEventListener('click', (e) => {
         for (let i = 0; i < bCount; i++) {
             let x1 = startX + i * (bWidth + bGap);
             let x2 = x1 + bWidth;
-            if (vx >= x1 && vx <= x2 && vy >= 330 && vy <= 390) {
-                selectedBoneIndex = i;
+            let targetMinY = (selectedBoneIndex === i) ? 325 : 335;
+            let targetMaxY = targetMinY + 50;
+            
+            if (vx >= x1 && vx <= x2 && vy >= targetMinY && vy <= targetMaxY) {
+                selectedBoneIndex = (selectedBoneIndex === i) ? null : i;
                 drawGame();
                 return;
             }
         }
     } 
-    // Нажатие на интерактивные кнопки направления «НАЛЕВО» / «НАПРАВО»
-    else if (selectedBoneIndex !== null && vy <= 280) {
-        // Проверяем клик по левой кнопке (vx от 20 до 140, vy от 20 до 60)
-        if (vx >= 20 && vx <= 140 && vy >= 20 && vy <= 60) {
-            ws.send(JSON.stringify({ type: 'MAKE_MOVE', boneIndex: selectedBoneIndex, direction: 'left' }));
-            selectedBoneIndex = null;
-        }
-        // Проверяем клик по правой кнопке (vx от 260 до 380, vy от 20 до 60)
-        else if (vx >= 260 && vx <= 380 && vy >= 20 && vy <= 60) {
-            ws.send(JSON.stringify({ type: 'MAKE_MOVE', boneIndex: selectedBoneIndex, direction: 'right' }));
-            selectedBoneIndex = null;
-        }
+    else if (selectedBoneIndex !== null && vy < 280) {
+        let side = vx < (virtualSize / 2) ? 'left' : 'right';
+        ws.send(JSON.stringify({ type: 'MAKE_MOVE', boneIndex: selectedBoneIndex, direction: side }));
+        selectedBoneIndex = null;
     }
 });
 
-function drawBone(x, y, bone, isSelected, isHorizontal) {
-    let w = isHorizontal ? 50 : 26;
-    let h = isHorizontal ? 26 : 50;
+function drawBone(x, y, bone, isSelected, isHorizontal, scaleFactor = 1) {
+    let w = (isHorizontal ? 50 : 26) * scaleFactor;
+    let h = (isHorizontal ? 26 : 50) * scaleFactor;
 
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 3;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.roundRect(x + 2, y + 3, w, h, 4 * scaleFactor);
+    ctx.fill();
 
     let g = ctx.createLinearGradient(x, y, x + w, y + h);
     if(isSelected) {
-        g.addColorStop(0, '#fffbeb'); g.addColorStop(1, '#f59e0b'); // Яркое золотое свечение выбранной кости
+        g.addColorStop(0, '#fef08a'); g.addColorStop(1, '#ca8a04');
     } else {
-        g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#e2e8f0');
+        g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#cbd5e1');
     }
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.roundRect(x, y, w, h, 4); ctx.fill();
+    ctx.beginPath(); 
+    ctx.roundRect(x, y, w, h, 4 * scaleFactor); 
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h * 0.3, 2 * scaleFactor);
+    ctx.fill();
     ctx.restore();
 
-    ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.2;
+    ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
     ctx.strokeRect(x, y, w, h);
 
-    ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5 * scaleFactor;
     ctx.beginPath();
     if (isHorizontal) { ctx.moveTo(x + w/2, y); ctx.lineTo(x + w/2, y + h); }
     else { ctx.moveTo(x, y + h/2); ctx.lineTo(x + w, y + h/2); }
@@ -226,124 +248,70 @@ function drawBone(x, y, bone, isSelected, isHorizontal) {
 
     function drawDots(cx, cy, count) {
         ctx.fillStyle = '#0f172a';
-        let r = 2.5; let d = 5;
-        if (count === 1) { 
-            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill(); 
-        }
-        if (count === 2) {
-            ctx.beginPath(); 
-            ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); 
-            ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); 
-            ctx.fill();
-        }
-        if (count === 3) {
-            ctx.beginPath(); 
-            ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); 
-            ctx.arc(cx, cy, r, 0, Math.PI*2); 
-            ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); 
-            ctx.fill();
-        }
-        if (count === 4) {
-            ctx.beginPath(); 
-            ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); 
-            ctx.arc(cx + d, cy - d, r, 0, Math.PI*2);
-            ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); 
-            ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); 
-            ctx.fill();
-        }
-        if (count === 5) {
-            ctx.beginPath(); 
-            ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); 
-            ctx.arc(cx + d, cy - d, r, 0, Math.PI*2);
-            ctx.arc(cx, cy, r, 0, Math.PI*2); 
-            ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); 
-            ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); 
-            ctx.fill();
-        }
-        if (count === 6) {
-            ctx.beginPath(); 
-            ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); 
-            ctx.arc(cx + d, cy - d, r, 0, Math.PI*2);
-            ctx.arc(cx - d, cy, r, 0, Math.PI*2); 
-            ctx.arc(cx + d, cy, r, 0, Math.PI*2);
-            ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); 
-            ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); 
-            ctx.fill();
-        }
+        let r = 2.5 * scaleFactor;
+        let d = 5 * scaleFactor;
+        ctx.beginPath();
+        if (count === 1) { ctx.arc(cx, cy, r, 0, Math.PI*2); }
+        if (count === 2) { ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); }
+        if (count === 3) { ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); }
+        if (count === 4) { ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx + d, cy - d, r, 0, Math.PI*2); ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); }
+        if (count === 5) { ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx + d, cy - d, r, 0, Math.PI*2); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); }
+        if (count === 6) { ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx + d, cy - d, r, 0, Math.PI*2); ctx.arc(cx - d, cy, r, 0, Math.PI*2); ctx.arc(cx + d, cy, r, 0, Math.PI*2); ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); }
+        ctx.fill();
     }
 
-    if (isHorizontal) {
-        drawDots(x + w/4, y + h/2, bone[0]); 
-        drawDots(x + (3*w)/4, y + h/2, bone[1]);
-    } else {
-        drawDots(x + w/2, y + h/4, bone[0]); 
-        drawDots(x + w/2, y + (3*h)/4, bone[1]);
-    }
+    if (isHorizontal) { drawDots(x + w/4, y + h/2, bone[0]); drawDots(x + (3*w)/4, y + h/2, bone[1]); }
+    else { drawDots(x + w/2, y + h/4, bone[0]); drawDots(x + w/2, y + (3*h)/4, bone[1]); }
 }
 
 function drawGame() {
     ctx.clearRect(0, 0, virtualSize, virtualSize);
+    let startLineY = 140;
+    
+    let scaleFactor = 1;
+    if (tableLine.length > 6) scaleFactor = 0.65;
+    if (tableLine.length > 11) scaleFactor = 0.45;
 
-    // 1. Отрисовка больших понятных кнопок выбора направления (загораются ТОЛЬКО когда кость выбрана)
-    if (selectedBoneIndex !== null && currentTurn === myColor) {
-        ctx.save();
-        ctx.shadowColor = 'rgba(234, 179, 8, 0.4)'; ctx.shadowBlur = 8;
+    let currentX = 20;
 
-        // Кнопка НАЛЕВО
-        let gLeft = ctx.createLinearGradient(20, 20, 140, 60);
-        gLeft.addColorStop(0, '#fef08a'); gLeft.addColorStop(1, '#ca8a04');
-        ctx.fillStyle = gLeft; ctx.beginPath(); ctx.roundRect(20, 20, 120, 40, 8); ctx.fill();
-        ctx.font = 'bold 12px Arial'; ctx.fillStyle = '#1e1b4b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('← НАЛЕВО', 80, 40);
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    ctx.fillRect(0, 0, virtualSize/2, 280);
+    ctx.fillRect(virtualSize/2, 0, virtualSize/2, 280);
+    ctx.font = '10px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.textAlign = 'center';
+    ctx.fillText('← КЛИК СЮДА: ВЫЛОЖИТЬ НАЛЕВО', 100, 20);
+    ctx.fillText('КЛИК СЮДА: ВЫЛОЖИТЬ НАПРАВО →', 300, 20);
 
-        // Кнопка НАПРАВО
-        let gRight = ctx.createLinearGradient(260, 20, 380, 60);
-        gRight.addColorStop(0, '#fef08a'); gRight.addColorStop(1, '#ca8a04');
-        ctx.fillStyle = gRight; ctx.beginPath(); ctx.roundRect(260, 20, 120, 40, 8); ctx.fill();
-        ctx.fillText('НАПРАВО →', 320, 40);
-        ctx.restore();
-    }
-
-    // 2. Отрисовка змейки костей на столе
-    let startLineY = 150;
-    let currentX = 30;
     tableLine.forEach(bone => {
         let isDub = bone[0] === bone[1];
         let rx = currentX;
-        let ry = isDub ? startLineY - 12 : startLineY;
-        drawBone(rx, ry, bone, false, !isDub);
-        currentX += isDub ? 32 : 56;
+        let ry = isDub ? startLineY - (12 * scaleFactor) : startLineY;
+        drawBone(rx, ry, bone, false, !isDub, scaleFactor);
+        currentX += (isDub ? 30 : 54) * scaleFactor;
     });
 
-    // 3. Отрисовка руки игрока внизу холста
     let bCount = myHand.length;
     let bWidth = 35; let bGap = 6;
     let startHandX = (virtualSize - (bCount * bWidth + (bCount - 1) * bGap)) / 2;
     for (let i = 0; i < bCount; i++) {
         let hx = startHandX + i * (bWidth + bGap);
-        let hy = selectedBoneIndex === i ? 332 : 345;
-        drawBone(hx, hy, myHand[i], selectedBoneIndex === i, false);
+        let hy = selectedBoneIndex === i ? 328 : 338;
+        drawBone(hx, hy, myHand[i], selectedBoneIndex === i, false, 1);
     }
 }
 
 function createFireworkExplosion(x, y) {
     const colors = ['#eab308', '#f97316', '#ef4444', '#3b82f6', '#10b981'];
     let baseColor = colors[Math.floor(Math.random() * colors.length)];
-    for (let i = 0; i < 40; i++) {
-        let angle = Math.random() * Math.PI * 2; 
-        let speed = Math.random() * 4 + 2;
-        fireworks.push({ 
-            x: x, y: y, 
-            vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, 
-            alpha: 1, color: baseColor, size: Math.random() * 2 + 2 
-        });
+    for (let i = 0; i < 30; i++) {
+        let angle = Math.random() * Math.PI * 2; let speed = Math.random() * 3 + 2;
+        fireworks.push({ x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, alpha: 1, color: baseColor, size: Math.random() * 1.5 + 1.5 });
     }
 }
 
 function updateFireworksLoop() {
     fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
     for (let i = fireworks.length - 1; i >= 0; i--) {
-        let p = fireworks[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.alpha -= 0.015;
+        let p = fireworks[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.alpha -= 0.02;
         if (p.alpha <= 0) { fireworks.splice(i, 1); continue; }
         fxCtx.save(); fxCtx.globalAlpha = p.alpha; fxCtx.fillStyle = p.color;
         fxCtx.beginPath(); fxCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2); fxCtx.fill(); fxCtx.restore();
@@ -355,13 +323,8 @@ function startFireworks() {
     if (fireworkTimer !== null) return;
     updateFireworksLoop();
     fireworkTimer = setInterval(() => {
-        createFireworkExplosion(Math.random() * fxCanvas.width, Math.random() * (fxCanvas.height * 0.5) + 100);
-    }, 450);
+        createFireworkExplosion(Math.random() * fxCanvas.width, Math.random() * (fxCanvas.height * 0.4) + 100);
+    }, 500);
 }
 
-function stopFireworks() { 
-    clearInterval(fireworkTimer); 
-    fireworkTimer = null; 
-    fireworks = []; 
-    fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); 
-}
+function stopFireworks() { clearInterval(fireworkTimer); fireworkTimer = null; fireworks = []; fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); }

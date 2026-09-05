@@ -124,7 +124,7 @@
         </div>
     </div>
 
-    <script src="client.js?v=3.0"></script>
+    <script src="client.js"></script>
     <script>
         function toggleRules() {
             const panel = document.getElementById('rulesPanel');
@@ -149,6 +149,9 @@
                 alert('Цифровой код стола успешно скопирован: ' + codeText);
             }).catch(err => { console.error(err); });
         }
+        document.getElementById('chatInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { sendChatMessage(); }
+        });
     </script>
 </body>
 </html>

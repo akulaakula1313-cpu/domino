@@ -67,9 +67,11 @@ wss.on('connection', (ws) => {
                     rightValue: null,
                     turn: 'w',
                     hands: { w: pack.slice(0, 7), b: pack.slice(7, 14) },
-                    players: { w: ws, b: null }
+                    players: { w: ws, b: null },
+                    rematchRequests: { w: false, b: false }
                 };
                 ws.send(JSON.stringify({ type: 'GAME_STARTED', color: 'w', mode: 'bot', hand: rooms[currentRoomCode].hands.w, line: [], turn: 'w', bazarCount: rooms[currentRoomCode].bazar.length }));
+                return;
             }
 
             if (data.type === 'CREATE_ROOM') {
@@ -86,9 +88,11 @@ wss.on('connection', (ws) => {
                     rightValue: null,
                     turn: 'w',
                     hands: { w: pack.slice(0, 7), b: pack.slice(7, 14) },
-                    players: { w: ws, b: null }
+                    players: { w: ws, b: null },
+                    rematchRequests: { w: false, b: false }
                 };
                 ws.send(JSON.stringify({ type: 'WAITING', message: 'Код стола создан', code: code }));
+                return;
             }
 
             if (data.type === 'JOIN_ROOM') {
@@ -103,45 +107,39 @@ wss.on('connection', (ws) => {
                 } else {
                     ws.send(JSON.stringify({ type: 'WAITING', message: 'Стол не найден или занят!' }));
                 }
+                return;
             }
 
-            if (data.type === 'TAKE_BAZAR' && currentRoomCode) {
-                const room = rooms[currentRoomCode];
-                if (!room || room.turn !== myColor) return;
+            if (!currentRoomCode || !rooms[currentRoomCode]) return;
+            const room = rooms[currentRoomCode];
 
+            if (data.type === 'TAKE_BAZAR') {
+                if (room.turn !== myColor) return;
                 if (room.bazar.length > 0 && !hasAnyValidMoves(room.hands[myColor], room.leftValue, room.rightValue)) {
                     let newBone = room.bazar.pop();
                     room.hands[myColor].push(newBone);
-                    
-                    ws.send(JSON.stringify({ type: 'STATE_UPDATE', hand: room.hands[myColor], line: room.line, turn: room.turn, bazarCount: room.bazar.length, leftValue: room.leftValue, rightValue: room.rightValue }));
-                    
-                    let oppColor = myColor === 'w' ? 'b' : 'w';
-                    if (room.players[oppColor] && room.players[oppColor].readyState === WebSocket.OPEN) {
-                        room.players[oppColor].send(JSON.stringify({ type: 'STATE_UPDATE', hand: room.hands[oppColor], line: room.line, turn: room.turn, bazarCount: room.bazar.length, leftValue: room.leftValue, rightValue: room.rightValue }));
-                    }
+                    broadcastState(room);
                 }
             }
 
-            if (data.type === 'PASS_TURN' && currentRoomCode) {
-                const room = rooms[currentRoomCode];
-                if (!room || room.turn !== myColor) return;
-
+            if (data.type === 'PASS_TURN') {
+                if (room.turn !== myColor) return;
                 if (room.bazar.length === 0 && !hasAnyValidMoves(room.hands[myColor], room.leftValue, room.rightValue)) {
                     room.turn = room.turn === 'w' ? 'b' : 'w';
                     checkRoundEndOrContinue(room);
                 }
             }
 
-            if (data.type === 'MAKE_MOVE' && currentRoomCode) {
-                const room = rooms[currentRoomCode];
-                if (!room || room.turn !== myColor) return;
-
+            if (data.type === 'MAKE_MOVE') {
+                if (room.turn !== myColor) return;
                 const { boneIndex, direction } = data;
                 let bone = room.hands[myColor][boneIndex];
-                if (!bone) return;
+                if (!bone) {
+                    ws.send(JSON.stringify({ type: 'MOVE_ERROR' }));
+                    return;
+                }
 
                 let success = false;
-
                 if (room.line.length === 0) {
                     room.line.push(bone);
                     room.leftValue = bone[0];
@@ -159,8 +157,7 @@ wss.on('connection', (ws) => {
                             room.leftValue = bone[1];
                             success = true;
                         }
-                    } 
-                    else if (direction === 'right') {
+                    } else if (direction === 'right') {
                         if (bone[0] === room.rightValue) {
                             room.line.push(bone);
                             room.rightValue = bone[1];
@@ -176,7 +173,6 @@ wss.on('connection', (ws) => {
 
                 if (success) {
                     room.hands[myColor].splice(boneIndex, 1);
-                    
                     if (room.hands[myColor].length === 0) {
                         sendGameOver(room, myColor, 'Выставил все кости!');
                     } else {
@@ -188,10 +184,51 @@ wss.on('connection', (ws) => {
                 }
             }
 
-            if (data.type === 'CHAT_MSG' && currentRoomCode) {
-                const room = rooms[currentRoomCode];
-                if (!room || room.mode !== 'pvp') return;
-                const payload = JSON.stringify({ type: 'CHAT_MSG', sender: myColor === 'w' ? 'Белый' : 'Черный', text: data.text });
+            if (data.type === 'REQUEST_REMATCH') {
+                room.rematchRequests[myColor] = true;
+                let oppColor = myColor === 'w' ? 'b' : 'w';
+
+                if (room.mode === 'bot') {
+                    let pack = createDominoPack();
+                    room.bazar = pack.slice(14);
+                    room.line = [];
+                    room.leftValue = null;
+                    room.rightValue = null;
+                    room.turn = 'w';
+                    room.hands.w = pack.slice(0, 7);
+                    room.hands.b = pack.slice(7, 14);
+                    room.rematchRequests = { w: false, b: false };
+                    ws.send(JSON.stringify({ type: 'GAME_STARTED', color: 'w', mode: 'bot', hand: room.hands.w, line: [], turn: 'w', bazarCount: room.bazar.length }));
+                } else {
+                    if (room.rematchRequests[oppColor]) {
+                        let pack = createDominoPack();
+                        room.bazar = pack.slice(14);
+                        room.line = [];
+                        room.leftValue = null;
+                        room.rightValue = null;
+                        room.turn = 'w';
+                        room.hands.w = pack.slice(0, 7);
+                        room.hands.b = pack.slice(7, 14);
+                        room.rematchRequests = { w: false, b: false };
+
+                        if (room.players.w && room.players.w.readyState === WebSocket.OPEN) {
+                            room.players.w.send(JSON.stringify({ type: 'GAME_STARTED', color: 'w', mode: 'pvp', hand: room.hands.w, line: [], turn: 'w', bazarCount: room.bazar.length }));
+                        }
+                        if (room.players.b && room.players.b.readyState === WebSocket.OPEN) {
+                            room.players.b.send(JSON.stringify({ type: 'GAME_STARTED', color: 'b', mode: 'pvp', hand: room.hands.b, line: [], turn: 'w', bazarCount: room.bazar.length }));
+                        }
+                    } else {
+                        if (room.players[oppColor] && room.players[oppColor].readyState === WebSocket.OPEN) {
+                            room.players[oppColor].send(JSON.stringify({ type: 'REMATCH_REQUESTED' }));
+                        }
+                    }
+                }
+            }
+
+            if (data.type === 'CHAT_MSG') {
+                if (room.mode !== 'pvp') return;
+                if (!data.text || typeof data.text !== 'string' || data.text.trim() === '') return;
+                const payload = JSON.stringify({ type: 'CHAT_MSG', sender: myColor === 'w' ? 'Белый' : 'Черный', text: data.text.trim() });
                 if (room.players.w && room.players.w.readyState === WebSocket.OPEN) room.players.w.send(payload);
                 if (room.players.b && room.players.b.readyState === WebSocket.OPEN) room.players.b.send(payload);
             }
@@ -261,7 +298,11 @@ function makeBotAiMove(room) {
     } else {
         if (room.bazar.length > 0) {
             room.hands.b.push(room.bazar.pop());
-            makeBotAiMove(room);
+            if (room.bazar.length === 0 && !hasAnyValidMoves(room.hands.w, room.leftValue, room.rightValue) && !hasAnyValidMoves(room.hands.b, room.leftValue, room.rightValue)) {
+                checkRoundEndOrContinue(room);
+            } else {
+                makeBotAiMove(room);
+            }
         } else {
             room.turn = 'w';
             checkRoundEndOrContinue(room);

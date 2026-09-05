@@ -24,6 +24,9 @@ body {
     padding: 15px;
     position: relative;
 }
+.container-box, .game-wrapper, .menu-btn, canvas {
+    will-change: transform, opacity;
+}
 .container-box {
     text-align: center;
     background: var(--panel-bg);
@@ -33,7 +36,7 @@ body {
     background-image: linear-gradient(var(--panel-bg), var(--panel-bg)), var(--gold-gradient);
     background-origin: border-box;
     background-clip: padding-box, border-box;
-    box-shadow: 0 25px 60px rgba(0,0,0,0.9), 0 0 30px rgba(245, 158, 11, 0.15);
+    box-shadow: 0 25px 60px rgba(0,0,0,0.9);
     width: 100%;
     max-width: 420px;
     backdrop-filter: blur(10px);
@@ -45,33 +48,40 @@ h1 {
     background: var(--gold-gradient);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0 4px 12px rgba(0,0,0,0.5);
     letter-spacing: 1px; 
-    animation: goldGlow 3s ease-in-out infinite alternate;
-}
-@keyframes goldGlow {
-    0% { filter: drop-shadow(0 0 2px rgba(254,240,138,0.2)); }
-    100% { filter: drop-shadow(0 0 12px rgba(245,158,11,0.6)); }
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6));
 }
 .creator-tag { 
     font-size: 12px; color: #d4d4d8; letter-spacing: 4px; margin-bottom: 35px; text-transform: uppercase; font-weight: 800; cursor: pointer; transition: color 0.3s;
 }
 .creator-tag:hover { color: var(--bright-gold); }
 .menu-btn {
-    background: var(--gold-gradient); color: #1e1b4b; border: none; padding: 16px 24px; font-size: 16px; font-weight: 800; border-radius: 14px; cursor: pointer; margin: 10px 0; width: 100%; box-shadow: 0 6px 20px rgba(180, 83, 9, 0.4), inset 0 2px 2px rgba(255,255,255,0.4); transition: transform 0.2s, box-shadow 0.2s; letter-spacing: 0.5px;
+    background: var(--gold-gradient); color: #1e1b4b; border: none; padding: 16px 24px; font-size: 16px; font-weight: 800; border-radius: 14px; cursor: pointer; margin: 10px 0; width: 100%; box-shadow: 0 6px 20px rgba(180, 83, 9, 0.4); transition: transform 0.15s, filter 0.15s; letter-spacing: 0.5px;
 }
-.menu-btn:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(245, 158, 11, 0.5); }
+.menu-btn:hover { filter: brightness(1.1); transform: translateY(-2px); }
 .menu-btn:active { transform: translateY(1px); }
-.menu-btn.secondary { background: var(--btn-dark-grad); color: #f4f4f5; border: 1px solid #3f3f46; }
+.menu-btn.secondary { background: var(--btn-dark-grad); color: #f4f4f5; border: 1px solid #3f3f46; box-shadow: none; }
 .menu-btn.secondary:hover { border-color: var(--accent-gold); color: var(--bright-gold); }
 .input-group { margin-top: 25px; padding-top: 25px; border-top: 1px dashed rgba(245, 158, 11, 0.2); }
 .code-input {
     width: 100%; padding: 14px; background: #110f0e; border: 2px solid #3f3f46; color: var(--bright-gold); border-radius: 12px; font-size: 20px; font-weight: bold; text-align: center; outline: none; letter-spacing: 2px;
 }
-.room-code-display { font-size: 42px; font-weight: 900; color: var(--accent-gold); letter-spacing: 6px; margin: 20px 0; text-shadow: 0 0 15px rgba(245,158,11,0.5); }
+.room-code-display { font-size: 42px; font-weight: 900; color: var(--accent-gold); letter-spacing: 6px; margin: 20px 0; filter: drop-shadow(0 0 10px rgba(245,158,11,0.4)); }
 .rules-panel { display: none; text-align: left; max-height: 180px; overflow-y: auto; background: #110f0e; padding: 18px; border-radius: 12px; font-size: 13px; color: #e4e4e7; margin-top: 15px; border: 1px solid #27272a; line-height: 1.6; }
 
-.game-wrapper { display: none; flex-direction: column; align-items: center; background: rgba(0, 0, 0, 0.5); padding: 15px; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); width: 100%; max-width: 420px; }
+.game-wrapper { 
+    display: none; 
+    flex-direction: column; 
+    align-items: center; 
+    background: rgba(0, 0, 0, 0.6); 
+    padding: 15px; 
+    border-radius: 24px; 
+    box-shadow: 0 20px 50px rgba(0,0,0,0.8); 
+    width: 100%; 
+    max-width: 420px; 
+    max-height: 95vh;
+    overflow-y: auto;
+}
 .vs-panel { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 12px; }
 .player-card { display: flex; flex-direction: column; align-items: center; background: #1c1917; border: 2px solid var(--accent-gold); border-radius: 12px; padding: 6px; width: 32%; }
 .player-avatar { font-size: 28px; margin-bottom: 2px; }
@@ -81,11 +91,11 @@ canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
 .controls-row { display: flex; justify-content: space-between; width: 100%; margin-top: 12px; }
 .ui-btn { background: linear-gradient(to bottom, #ea580c, #c2410c); border: 2px solid #7c2d12; border-radius: 50%; width: 46px; height: 46px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 4px 6px rgba(0,0,0,0.4); }
 .chat-box { width: 100%; background: rgba(0,0,0,0.6); border-radius: 12px; margin-top: 12px; padding: 10px; }
-.chat-messages { height: 70px; overflow-y: auto; font-size: 12px; color: #cbd5e1; text-align: left; margin-bottom: 5px; }
+.chat-messages { height: 75px; overflow-y: auto; font-size: 12px; color: #cbd5e1; text-align: left; margin-bottom: 5px; }
 .emoji-bar { display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 6px; margin-bottom: 6px; }
 .emoji-btn { font-size: 16px; cursor: pointer; background: none; border: none; padding: 2px 6px; }
 .chat-input-row { display: flex; }
-.chat-input-row input { flex: 1; background: #262626; border: 1px solid #525252; color: #fff; padding: 8px; border-radius: 6px 0 0 6px; outline: none; font-size: 14px; }
+.chat-input-row input { flex: 1; background: #262626; border: 1px solid #525252; color: #fff; padding: 8px; border-radius: 6px 0 0 6px; outline: none; font-size: 14px; -webkit-user-select: text; user-select: text; }
 .chat-input-row button { background: var(--accent-gold); border: none; padding: 8px 12px; border-radius: 0 6px 6px 0; cursor: pointer; font-weight: bold; font-size: 14px; color: #1e1b4b; }
 .modal-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; z-index: 100; padding: 15px; }
 .result-title { font-size: 32px; font-weight: 900; margin-bottom: 10px; }
