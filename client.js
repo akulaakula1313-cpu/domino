@@ -75,7 +75,7 @@ function playErrorSound() {
 function playWinSound() {
     try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        [523, 659, 783].forEach((f, idx) => {
+        [523.25, 659.25, 783.99].forEach((f, idx) => {
             let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
             osc.frequency.value = f; gain.gain.setValueAtTime(0.06, audioCtx.currentTime + idx*0.05);
             gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
@@ -167,6 +167,7 @@ canvas.addEventListener('click', (e) => {
     const vx = clientX * scaleX;
     const vy = clientY * scaleY;
 
+    // Нижняя зона (рука игрока)
     if (vy > 320) {
         let bCount = myHand.length;
         let bWidth = 35; let bGap = 6;
@@ -182,10 +183,18 @@ canvas.addEventListener('click', (e) => {
             }
         }
     } 
-    else if (selectedBoneIndex !== null) {
-        let side = vx < (virtualSize / 2) ? 'left' : 'right';
-        ws.send(JSON.stringify({ type: 'MAKE_MOVE', boneIndex: selectedBoneIndex, direction: side }));
-        selectedBoneIndex = null;
+    // Нажатие на интерактивные кнопки направления «НАЛЕВО» / «НАПРАВО»
+    else if (selectedBoneIndex !== null && vy <= 280) {
+        // Проверяем клик по левой кнопке (vx от 20 до 140, vy от 20 до 60)
+        if (vx >= 20 && vx <= 140 && vy >= 20 && vy <= 60) {
+            ws.send(JSON.stringify({ type: 'MAKE_MOVE', boneIndex: selectedBoneIndex, direction: 'left' }));
+            selectedBoneIndex = null;
+        }
+        // Проверяем клик по правой кнопке (vx от 260 до 380, vy от 20 до 60)
+        else if (vx >= 260 && vx <= 380 && vy >= 20 && vy <= 60) {
+            ws.send(JSON.stringify({ type: 'MAKE_MOVE', boneIndex: selectedBoneIndex, direction: 'right' }));
+            selectedBoneIndex = null;
+        }
     }
 });
 
@@ -198,7 +207,7 @@ function drawBone(x, y, bone, isSelected, isHorizontal) {
 
     let g = ctx.createLinearGradient(x, y, x + w, y + h);
     if(isSelected) {
-        g.addColorStop(0, '#fef08a'); g.addColorStop(1, '#eab308');
+        g.addColorStop(0, '#fffbeb'); g.addColorStop(1, '#f59e0b'); // Яркое золотое свечение выбранной кости
     } else {
         g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#e2e8f0');
     }
@@ -206,10 +215,10 @@ function drawBone(x, y, bone, isSelected, isHorizontal) {
     ctx.beginPath(); ctx.roundRect(x, y, w, h, 4); ctx.fill();
     ctx.restore();
 
-    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
+    ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.2;
     ctx.strokeRect(x, y, w, h);
 
-    ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5;
     ctx.beginPath();
     if (isHorizontal) { ctx.moveTo(x + w/2, y); ctx.lineTo(x + w/2, y + h); }
     else { ctx.moveTo(x, y + h/2); ctx.lineTo(x + w, y + h/2); }
@@ -217,56 +226,102 @@ function drawBone(x, y, bone, isSelected, isHorizontal) {
 
     function drawDots(cx, cy, count) {
         ctx.fillStyle = '#0f172a';
-        let r = 2.5;
-        let d = 5;
-        if (count === 1) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill(); }
+        let r = 2.5; let d = 5;
+        if (count === 1) { 
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill(); 
+        }
         if (count === 2) {
-            ctx.beginPath(); ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); 
+            ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); 
+            ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); 
+            ctx.fill();
         }
         if (count === 3) {
-            ctx.beginPath(); ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); 
+            ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); 
+            ctx.arc(cx, cy, r, 0, Math.PI*2); 
+            ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); 
+            ctx.fill();
         }
         if (count === 4) {
-            ctx.beginPath(); ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx + d, cy - d, r, 0, Math.PI*2); ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); 
+            ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); 
+            ctx.arc(cx + d, cy - d, r, 0, Math.PI*2);
+            ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); 
+            ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); 
+            ctx.fill();
         }
         if (count === 5) {
-            ctx.beginPath(); ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx + d, cy - d, r, 0, Math.PI*2); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); 
+            ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); 
+            ctx.arc(cx + d, cy - d, r, 0, Math.PI*2);
+            ctx.arc(cx, cy, r, 0, Math.PI*2); 
+            ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); 
+            ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); 
+            ctx.fill();
         }
         if (count === 6) {
-            ctx.beginPath(); ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx + d, cy - d, r, 0, Math.PI*2); ctx.arc(cx - d, cy, r, 0, Math.PI*2); ctx.arc(cx + d, cy, r, 0, Math.PI*2); ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); 
+            ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); 
+            ctx.arc(cx + d, cy - d, r, 0, Math.PI*2);
+            ctx.arc(cx - d, cy, r, 0, Math.PI*2); 
+            ctx.arc(cx + d, cy, r, 0, Math.PI*2);
+            ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); 
+            ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); 
+            ctx.fill();
         }
     }
 
-    if (isHorizontal) { drawDots(x + w/4, y + h/2, bone[0]); drawDots(x + (3*w)/4, y + h/2, bone[1]); }
-    else { drawDots(x + w/2, y + h/4, bone[0]); drawDots(x + w/2, y + (3*h)/4, bone[1]); }
+    if (isHorizontal) {
+        drawDots(x + w/4, y + h/2, bone[0]); 
+        drawDots(x + (3*w)/4, y + h/2, bone[1]);
+    } else {
+        drawDots(x + w/2, y + h/4, bone[0]); 
+        drawDots(x + w/2, y + (3*h)/4, bone[1]);
+    }
 }
 
 function drawGame() {
     ctx.clearRect(0, 0, virtualSize, virtualSize);
-    let startLineY = 140;
+
+    // 1. Отрисовка больших понятных кнопок выбора направления (загораются ТОЛЬКО когда кость выбрана)
+    if (selectedBoneIndex !== null && currentTurn === myColor) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(234, 179, 8, 0.4)'; ctx.shadowBlur = 8;
+
+        // Кнопка НАЛЕВО
+        let gLeft = ctx.createLinearGradient(20, 20, 140, 60);
+        gLeft.addColorStop(0, '#fef08a'); gLeft.addColorStop(1, '#ca8a04');
+        ctx.fillStyle = gLeft; ctx.beginPath(); ctx.roundRect(20, 20, 120, 40, 8); ctx.fill();
+        ctx.font = 'bold 12px Arial'; ctx.fillStyle = '#1e1b4b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('← НАЛЕВО', 80, 40);
+
+        // Кнопка НАПРАВО
+        let gRight = ctx.createLinearGradient(260, 20, 380, 60);
+        gRight.addColorStop(0, '#fef08a'); gRight.addColorStop(1, '#ca8a04');
+        ctx.fillStyle = gRight; ctx.beginPath(); ctx.roundRect(260, 20, 120, 40, 8); ctx.fill();
+        ctx.fillText('НАПРАВО →', 320, 40);
+        ctx.restore();
+    }
+
+    // 2. Отрисовка змейки костей на столе
+    let startLineY = 150;
     let currentX = 30;
-
-    ctx.fillStyle = 'rgba(255,255,255,0.02)';
-    ctx.fillRect(0, 0, virtualSize/2, 280);
-    ctx.fillRect(virtualSize/2, 0, virtualSize/2, 280);
-    ctx.font = '10px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.textAlign = 'center';
-    ctx.fillText('← КЛИК СЮДА: ВЫЛОЖИТЬ НАЛЕВО', 100, 20);
-    ctx.fillText('КЛИК СЮДА: ВЫЛОЖИТЬ НАПРАВО →', 300, 20);
-
     tableLine.forEach(bone => {
         let isDub = bone[0] === bone[1];
         let rx = currentX;
         let ry = isDub ? startLineY - 12 : startLineY;
         drawBone(rx, ry, bone, false, !isDub);
-        currentX += isDub ? 30 : 54;
+        currentX += isDub ? 32 : 56;
     });
 
+    // 3. Отрисовка руки игрока внизу холста
     let bCount = myHand.length;
     let bWidth = 35; let bGap = 6;
     let startHandX = (virtualSize - (bCount * bWidth + (bCount - 1) * bGap)) / 2;
     for (let i = 0; i < bCount; i++) {
         let hx = startHandX + i * (bWidth + bGap);
-        let hy = selectedBoneIndex === i ? 335 : 345;
+        let hy = selectedBoneIndex === i ? 332 : 345;
         drawBone(hx, hy, myHand[i], selectedBoneIndex === i, false);
     }
 }
@@ -275,8 +330,13 @@ function createFireworkExplosion(x, y) {
     const colors = ['#eab308', '#f97316', '#ef4444', '#3b82f6', '#10b981'];
     let baseColor = colors[Math.floor(Math.random() * colors.length)];
     for (let i = 0; i < 40; i++) {
-        let angle = Math.random() * Math.PI * 2; let speed = Math.random() * 4 + 2;
-        fireworks.push({ x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, alpha: 1, color: baseColor, size: Math.random() * 2 + 2 });
+        let angle = Math.random() * Math.PI * 2; 
+        let speed = Math.random() * 4 + 2;
+        fireworks.push({ 
+            x: x, y: y, 
+            vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, 
+            alpha: 1, color: baseColor, size: Math.random() * 2 + 2 
+        });
     }
 }
 
@@ -299,4 +359,9 @@ function startFireworks() {
     }, 450);
 }
 
-function stopFireworks() { clearInterval(fireworkTimer); fireworkTimer = null; fireworks = []; fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); }
+function stopFireworks() { 
+    clearInterval(fireworkTimer); 
+    fireworkTimer = null; 
+    fireworks = []; 
+    fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); 
+}
