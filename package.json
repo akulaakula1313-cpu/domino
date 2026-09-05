@@ -1,0 +1,13 @@
+{
+  "name": "domino-sani-group",
+  "version": "1.0.0",
+  "description": "Premium Domino Online by SANI GROUP",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.17.0"
+  }
+}
