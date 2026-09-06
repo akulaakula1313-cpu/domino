@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -10,14 +11,28 @@ const wss = new WebSocket.Server({ server });
 app.use(express.json());
 app.use(express.static(__dirname));
 
+const DB_FILE = path.join(__dirname, 'players_db.json');
+let playersDB = {};
+
+if (fs.existsSync(DB_FILE)) {
+    try {
+        playersDB = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    } catch (e) {
+        console.error("Ошибка базы данных, создаем новую:", e);
+        playersDB = {};
+    }
+}
+
+function saveDB() {
+    fs.writeFileSync(DB_FILE, JSON.stringify(playersDB, null, 2), 'utf8');
+}
+
 let rooms = {}; 
 
 function createDominoPack() {
     let pack = [];
     for (let i = 0; i <= 6; i++) {
-        for (let j = i; j <= 6; j++) {
-            pack.push([i, j]);
-        }
+        for (let j = i; j <= 6; j++) { pack.push([i, j]); }
     }
     for (let i = pack.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -26,18 +41,16 @@ function createDominoPack() {
     return pack;
 }
 
-function generateRoomCode() {
-    const digits = '0123456789';
-    let code = '';
-    for (let i = 0; i < 4; i++) { code += digits.charAt(Math.floor(Math.random() * digits.length)); }
-    return code;
-}
-
-function countHandPoints(hand) {
+function calculateFinalPoints(hand, room) {
     let sum = 0;
     hand.forEach(bone => {
-        if (bone[0] === 0 && bone[1] === 0 && hand.length === 1) { sum += 25; }
-        else { sum += bone[0] + bone[1]; }
+        if (bone[0] === 0 && bone[1] === 0) {
+            sum += room.penalty00 ? 25 : 0;
+        } else if (bone[0] === 6 && bone[1] === 6) {
+            sum += room.penalty66 ? 50 : 12;
+        } else {
+            sum += bone[0] + bone[1];
+        }
     });
     return sum;
 }
@@ -46,6 +59,84 @@ function hasAnyValidMoves(hand, leftVal, rightVal) {
     if (leftVal === null && rightVal === null) return true;
     return hand.some(bone => bone[0] === leftVal || bone[1] === leftVal || bone[0] === rightVal || bone[1] === rightVal);
 }
+
+app.post('/api/get-account', (req, res) => {
+    let { playerId } = req.body;
+    if (!playerId || !playersDB[playerId]) {
+        playerId = 'player_' + Math.random().toString(36).substring(2, 11);
+        playersDB[playerId] = {
+            name: 'SaniPark_' + Math.random().toString(36).substring(2, 6).toUpperCase(),
+            coins: 300,
+            gems: 10,
+            bonusDay: 1,
+            lastBonusTime: 0,
+            stars: 1,
+            rankName: 'Бронзовый IV',
+            ownedDesigns: ['design_default'],
+            currentDesign: 'design_default',
+            botStats: { rating: 1000, maxRating: 1000, minRating: 1000, gamesPlayed: 0, wins: 0, draws: 0, losses: 0 },
+            onlineStats: { rating: 1000, maxRating: 1000, minRating: 1000, gamesPlayed: 0, wins: 0, draws: 0, losses: 0 }
+        };
+        saveDB();
+    }
+    res.json({ playerId, account: playersDB[playerId] });
+});
+
+app.post('/api/claim-bonus', (req, res) => {
+    const { playerId } = req.body;
+    if (!playerId || !playersDB[playerId]) return res.status(400).json({ error: 'Игрок не найден' });
+
+    const player = playersDB[playerId];
+    const currentDay = player.bonusDay || 1;
+    const rewards = { 1: { coins: 10, gems: 1 }, 2: { coins: 20, gems: 2 }, 3: { coins: 30, gems: 3 }, 4: { coins: 40, gems: 4 }, 5: { coins: 50, gems: 5 }, 6: { coins: 100, gems: 10 }, 7: { coins: 300, gems: 30 } };
+    const prize = rewards[currentDay] || { coins: 10, gems: 1 };
+
+    player.coins += prize.coins;
+    player.gems += prize.gems;
+    player.lastBonusTime = new Date().getTime();
+    player.bonusDay = currentDay >= 7 ? 1 : currentDay + 1;
+    saveDB();
+    res.json({ success: true, account: player, prize });
+});
+
+app.post('/api/buy-design', (req, res) => {
+    const { playerId, designId, price } = req.body;
+    const player = playersDB[playerId];
+    if (!player) return res.status(400).json({ error: 'Ошибка' });
+    if (player.ownedDesigns.includes(designId)) return res.json({ success: false, message: 'Уже куплено!' });
+    if (player.gems < price) return res.json({ success: false, message: 'Недостаточно алмазов! 💎' });
+
+    player.gems -= price;
+    player.ownedDesigns.push(designId);
+    player.currentDesign = designId;
+    saveDB();
+    res.json({ success: true, account: player });
+});
+
+app.post('/api/select-design', (req, res) => {
+    const { playerId, designId } = req.body;
+    const player = playersDB[playerId];
+    if (!player || !player.ownedDesigns.includes(designId)) return res.json({ success: false, message: 'Ошибка' });
+    player.currentDesign = designId;
+    saveDB();
+    res.json({ success: true, account: player });
+});
+
+let globalChatHistory = [];
+app.post('/api/get-global-chat', (req, res) => {
+    const now = new Date().getTime();
+    globalChatHistory = globalChatHistory.filter(msg => (now - msg.timestamp) < (24 * 60 * 60 * 1000));
+    res.json({ messages: globalChatHistory });
+});
+
+app.post('/api/send-global-chat', (req, res) => {
+    const { playerId, text } = req.body;
+    const player = playersDB[playerId];
+    if (!player || !text.trim()) return res.status(400).json({ error: 'Ошибка' });
+    
+    globalChatHistory.push({ senderName: player.name, text: text.trim().substring(0, 150), timestamp: new Date().getTime() });
+    res.json({ success: true, messages: globalChatHistory });
+});
 
 wss.on('connection', (ws) => {
     let currentRoomCode = null;
@@ -60,224 +151,72 @@ wss.on('connection', (ws) => {
                 myColor = 'w';
                 let pack = createDominoPack();
                 rooms[currentRoomCode] = {
-                    mode: 'bot',
-                    bazar: pack.slice(14),
-                    line: [],
-                    leftValue: null,
-                    rightValue: null,
-                    turn: 'w',
-                    hands: { w: pack.slice(0, 7), b: pack.slice(7, 14) },
-                    players: { w: ws, b: null },
-                    rematchRequests: { w: false, b: false }
+                    mode: 'bot', botName: data.botName || 'БОТ ИИ', botDifficulty: data.botDifficulty || 'medium',
+                    penalty66: data.penalty66, penalty00: data.penalty00, bazar: pack.slice(14), line: [],
+                    leftValue: null, rightValue: null, turn: 'w', hands: { w: pack.slice(0, 7), b: pack.slice(7, 14) },
+                    players: { w: ws, b: null }
                 };
                 ws.send(JSON.stringify({ type: 'GAME_STARTED', color: 'w', mode: 'bot', hand: rooms[currentRoomCode].hands.w, line: [], turn: 'w', bazarCount: rooms[currentRoomCode].bazar.length }));
-                return;
             }
 
-            if (data.type === 'CREATE_ROOM') {
-                let code = generateRoomCode();
-                while (rooms[code]) { code = generateRoomCode(); }
-                currentRoomCode = code;
-                myColor = 'w';
-                let pack = createDominoPack();
-                rooms[code] = {
-                    mode: 'pvp',
-                    bazar: pack.slice(14),
-                    line: [],
-                    leftValue: null,
-                    rightValue: null,
-                    turn: 'w',
-                    hands: { w: pack.slice(0, 7), b: pack.slice(7, 14) },
-                    players: { w: ws, b: null },
-                    rematchRequests: { w: false, b: false }
-                };
-                ws.send(JSON.stringify({ type: 'WAITING', message: 'Код стола создан', code: code }));
-                return;
-            }
-
-            if (data.type === 'JOIN_ROOM') {
-                let code = data.roomCode;
-                if (rooms[code] && rooms[code].mode === 'pvp' && !rooms[code].players.b) {
-                    currentRoomCode = code;
-                    myColor = 'b';
-                    rooms[code].players.b = ws;
-                    
-                    rooms[code].players.w.send(JSON.stringify({ type: 'GAME_STARTED', color: 'w', mode: 'pvp', hand: rooms[code].hands.w, line: [], turn: 'w', bazarCount: rooms[code].bazar.length }));
-                    rooms[code].players.b.send(JSON.stringify({ type: 'GAME_STARTED', color: 'b', mode: 'pvp', hand: rooms[code].hands.b, line: [], turn: 'w', bazarCount: rooms[code].bazar.length }));
-                } else {
-                    ws.send(JSON.stringify({ type: 'WAITING', message: 'Стол не найден или занят!' }));
-                }
-                return;
-            }
-
-            if (!currentRoomCode || !rooms[currentRoomCode]) return;
-            const room = rooms[currentRoomCode];
-
-            if (data.type === 'TAKE_BAZAR') {
-                if (room.turn !== myColor) return;
+            if (data.type === 'TAKE_BAZAR' && currentRoomCode) {
+                const room = rooms[currentRoomCode];
+                if (!room || room.turn !== myColor) return;
                 if (room.bazar.length > 0 && !hasAnyValidMoves(room.hands[myColor], room.leftValue, room.rightValue)) {
-                    let newBone = room.bazar.pop();
-                    room.hands[myColor].push(newBone);
+                    room.hands[myColor].push(room.bazar.pop());
                     broadcastState(room);
                 }
             }
 
-            if (data.type === 'PASS_TURN') {
-                if (room.turn !== myColor) return;
-                if (room.bazar.length === 0 && !hasAnyValidMoves(room.hands[myColor], room.leftValue, room.rightValue)) {
-                    room.turn = room.turn === 'w' ? 'b' : 'w';
-                    checkRoundEndOrContinue(room);
-                }
-            }
-
-            if (data.type === 'MAKE_MOVE') {
-                if (room.turn !== myColor) return;
+            if (data.type === 'MAKE_MOVE' && currentRoomCode) {
+                const room = rooms[currentRoomCode];
+                if (!room || room.turn !== myColor) return;
                 const { boneIndex, direction } = data;
                 let bone = room.hands[myColor][boneIndex];
-                if (!bone) {
-                    ws.send(JSON.stringify({ type: 'MOVE_ERROR' }));
-                    return;
-                }
+                if (!bone) return;
 
                 let success = false;
                 if (room.line.length === 0) {
-                    room.line.push(bone);
-                    room.leftValue = bone[0];
-                    room.rightValue = bone[1];
-                    success = true;
+                    room.line.push(bone); room.leftValue = bone[0]; room.rightValue = bone[1]; success = true;
                 } else {
                     if (direction === 'left') {
-                        if (bone[1] === room.leftValue) {
-                            room.line.unshift(bone);
-                            room.leftValue = bone[0];
-                            success = true;
-                        } else if (bone[0] === room.leftValue) {
-                            let flipped = [bone[1], bone[0]];
-                            room.line.unshift(flipped);
-                            room.leftValue = bone[1];
-                            success = true;
-                        }
+                        if (bone[1] === room.leftValue) { room.line.unshift(bone); room.leftValue = bone[0]; success = true; }
+                        else if (bone[0] === room.leftValue) { room.line.unshift([bone[1], bone[0]]); room.leftValue = bone[1]; success = true; }
                     } else if (direction === 'right') {
-                        if (bone[0] === room.rightValue) {
-                            room.line.push(bone);
-                            room.rightValue = bone[1];
-                            success = true;
-                        } else if (bone[1] === room.rightValue) {
-                            let flipped = [bone[1], bone[0]];
-                            room.line.push(flipped);
-                            room.rightValue = bone[0];
-                            success = true;
-                        }
+                        if (bone[0] === room.rightValue) { room.line.push(bone); room.rightValue = bone[1]; success = true; }
+                        else if (bone[1] === room.rightValue) { room.line.push([bone[1], bone[0]]); room.rightValue = bone[0]; success = true; }
                     }
                 }
 
                 if (success) {
                     room.hands[myColor].splice(boneIndex, 1);
-                    if (room.hands[myColor].length === 0) {
-                        sendGameOver(room, myColor, 'Выставил все кости!');
-                    } else {
-                        room.turn = room.turn === 'w' ? 'b' : 'w';
-                        checkRoundEndOrContinue(room);
-                    }
-                } else {
-                    ws.send(JSON.stringify({ type: 'MOVE_ERROR' }));
-                }
-            }
-
-            if (data.type === 'REQUEST_REMATCH') {
-                room.rematchRequests[myColor] = true;
-                let oppColor = myColor === 'w' ? 'b' : 'w';
-
-                if (room.mode === 'bot') {
-                    let pack = createDominoPack();
-                    room.bazar = pack.slice(14);
-                    room.line = [];
-                    room.leftValue = null;
-                    room.rightValue = null;
-                    room.turn = 'w';
-                    room.hands.w = pack.slice(0, 7);
-                    room.hands.b = pack.slice(7, 14);
-                    room.rematchRequests = { w: false, b: false };
-                    ws.send(JSON.stringify({ type: 'GAME_STARTED', color: 'w', mode: 'bot', hand: room.hands.w, line: [], turn: 'w', bazarCount: room.bazar.length }));
-                } else {
-                    if (room.rematchRequests[oppColor]) {
-                        let pack = createDominoPack();
-                        room.bazar = pack.slice(14);
-                        room.line = [];
-                        room.leftValue = null;
-                        room.rightValue = null;
-                        room.turn = 'w';
-                        room.hands.w = pack.slice(0, 7);
-                        room.hands.b = pack.slice(7, 14);
-                        room.rematchRequests = { w: false, b: false };
-
-                        if (room.players.w && room.players.w.readyState === WebSocket.OPEN) {
-                            room.players.w.send(JSON.stringify({ type: 'GAME_STARTED', color: 'w', mode: 'pvp', hand: room.hands.w, line: [], turn: 'w', bazarCount: room.bazar.length }));
-                        }
-                        if (room.players.b && room.players.b.readyState === WebSocket.OPEN) {
-                            room.players.b.send(JSON.stringify({ type: 'GAME_STARTED', color: 'b', mode: 'pvp', hand: room.hands.b, line: [], turn: 'w', bazarCount: room.bazar.length }));
-                        }
-                    } else {
-                        if (room.players[oppColor] && room.players[oppColor].readyState === WebSocket.OPEN) {
-                            room.players[oppColor].send(JSON.stringify({ type: 'REMATCH_REQUESTED' }));
-                        }
-                    }
-                }
-            }
-
-            if (data.type === 'CHAT_MSG') {
-                if (room.mode !== 'pvp') return;
-                if (!data.text || typeof data.text !== 'string' || data.text.trim() === '') return;
-                const payload = JSON.stringify({ type: 'CHAT_MSG', sender: myColor === 'w' ? 'Белый' : 'Черный', text: data.text.trim() });
-                if (room.players.w && room.players.w.readyState === WebSocket.OPEN) room.players.w.send(payload);
-                if (room.players.b && room.players.b.readyState === WebSocket.OPEN) room.players.b.send(payload);
+                    if (room.hands[myColor].length === 0) { sendGameOver(room, myColor, 'Выставил все кости!'); }
+                    else { room.turn = room.turn === 'w' ? 'b' : 'w'; checkRoundEndOrContinue(room); }
+                } else { ws.send(JSON.stringify({ type: 'MOVE_ERROR' })); }
             }
         } catch (e) { console.error(e); }
-    });
-
-    ws.on('close', () => {
-        if (currentRoomCode && rooms[currentRoomCode]) {
-            const room = rooms[currentRoomCode];
-            let oppColor = myColor === 'w' ? 'b' : 'w';
-            if (room.players[oppColor] && room.players[oppColor].readyState === WebSocket.OPEN) {
-                room.players[oppColor].send(JSON.stringify({ type: 'OPPONENT_DISCONNECTED' }));
-            }
-            delete rooms[currentRoomCode];
-        }
     });
 });
 
 function checkRoundEndOrContinue(room) {
     if (room.bazar.length === 0 && !hasAnyValidMoves(room.hands.w, room.leftValue, room.rightValue) && !hasAnyValidMoves(room.hands.b, room.leftValue, room.rightValue)) {
-        let ptsW = countHandPoints(room.hands.w);
-        let ptsB = countHandPoints(room.hands.b);
-        if (ptsW < ptsB) {
-            sendGameOver(room, 'w', 'Рыба! У вас меньше очков: ' + ptsW + ' против ' + ptsB);
-        } else if (ptsB < ptsW) {
-            sendGameOver(room, 'b', 'Рыба! У соперника меньше очков: ' + ptsB + ' против ' + ptsW);
-        } else {
-            sendGameOver(room, 'draw', 'Ничья по очкам при Рыбе!');
-        }
+        let ptsW = calculateFinalPoints(room.hands.w, room);
+        let ptsB = calculateFinalPoints(room.hands.b, room);
+        if (ptsW < ptsB) sendGameOver(room, 'w', 'Рыба! У вас меньше очков: ' + ptsW);
+        else sendGameOver(room, 'b', 'Рыба! У бота меньше очков: ' + ptsB);
         return;
     }
-
     if (room.mode === 'bot' && room.turn === 'b') {
-        setTimeout(() => makeBotAiMove(room), 800);
-    } else {
-        broadcastState(room);
-    }
+        let botDelay = room.botDifficulty === 'expert' ? 200 : (room.botDifficulty === 'hard' ? 500 : 1000);
+        setTimeout(() => makeBotAiMove(room), botDelay);
+    } else { broadcastState(room); }
 }
 
 function makeBotAiMove(room) {
-    let hand = room.hands.b;
-    let moved = false;
+    let hand = room.hands.b; let moved = false;
     for (let i = 0; i < hand.length; i++) {
         let bone = hand[i];
-        if (room.line.length === 0) {
-            room.line.push(bone);
-            room.leftValue = bone[0]; room.rightValue = bone[1];
-            hand.splice(i, 1); moved = true; break;
-        } else if (bone[0] === room.leftValue || bone[1] === room.leftValue) {
+        if (bone[0] === room.leftValue || bone[1] === room.leftValue) {
             if (bone[1] === room.leftValue) { room.line.unshift(bone); room.leftValue = bone[0]; }
             else { room.line.unshift([bone[1], bone[0]]); room.leftValue = bone[1]; }
             hand.splice(i, 1); moved = true; break;
@@ -287,42 +226,23 @@ function makeBotAiMove(room) {
             hand.splice(i, 1); moved = true; break;
         }
     }
-
     if (moved) {
-        if (room.hands.b.length === 0) {
-            sendGameOver(room, 'b', 'Бот выставил все кости!');
-        } else {
-            room.turn = 'w';
-            checkRoundEndOrContinue(room);
-        }
+        if (room.hands.b.length === 0) sendGameOver(room, 'b', 'Бот победил!');
+        else { room.turn = 'w'; broadcastState(room); }
     } else {
-        if (room.bazar.length > 0) {
-            room.hands.b.push(room.bazar.pop());
-            if (room.bazar.length === 0 && !hasAnyValidMoves(room.hands.w, room.leftValue, room.rightValue) && !hasAnyValidMoves(room.hands.b, room.leftValue, room.rightValue)) {
-                checkRoundEndOrContinue(room);
-            } else {
-                makeBotAiMove(room);
-            }
-        } else {
-            room.turn = 'w';
-            checkRoundEndOrContinue(room);
-        }
+        if (room.bazar.length > 0) { room.hands.b.push(room.bazar.pop()); makeBotAiMove(room); }
+        else { room.turn = 'w'; checkRoundEndOrContinue(room); }
     }
 }
 
 function sendGameOver(room, winnerColor, reason) {
-    const payloadW = JSON.stringify({ type: 'GAME_OVER', winner: winnerColor, result: winnerColor === 'w' ? 'WIN' : (winnerColor === 'draw' ? 'DRAW' : 'LOSE'), reason });
-    const payloadB = JSON.stringify({ type: 'GAME_OVER', winner: winnerColor, result: winnerColor === 'b' ? 'WIN' : (winnerColor === 'draw' ? 'DRAW' : 'LOSE'), reason });
-    if (room.players.w && room.players.w.readyState === WebSocket.OPEN) room.players.w.send(payloadW);
-    if (room.players.b && room.players.b.readyState === WebSocket.OPEN) room.players.b.send(payloadB);
+    const payload = JSON.stringify({ type: 'GAME_OVER', result: winnerColor === 'w' ? 'WIN' : 'LOSE', reason });
+    if (room.players.w) room.players.w.send(payload);
 }
 
 function broadcastState(room) {
-    const payloadW = JSON.stringify({ type: 'STATE_UPDATE', hand: room.hands.w, line: room.line, turn: room.turn, mode: room.mode, bazarCount: room.bazar.length, leftValue: room.leftValue, rightValue: room.rightValue });
-    const payloadB = JSON.stringify({ type: 'STATE_UPDATE', hand: room.hands.b, line: room.line, turn: room.turn, mode: room.mode, bazarCount: room.bazar.length, leftValue: room.leftValue, rightValue: room.rightValue });
-    if (room.players.w && room.players.w.readyState === WebSocket.OPEN) room.players.w.send(payloadW);
-    if (room.players.b && room.players.b.readyState === WebSocket.OPEN) room.players.b.send(payloadB);
+    const payload = JSON.stringify({ type: 'STATE_UPDATE', hand: room.hands.w, line: room.line, turn: room.turn, mode: room.mode, bazarCount: room.bazar.length, leftValue: room.leftValue, rightValue: room.rightValue });
+    if (room.players.w) room.players.w.send(payload);
 }
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Сервер ДОМИНО от SANI GROUP запущен на порту ${PORT}`));
+server.listen(3000, () => console.log('Сервер запущен на порту 3000'));

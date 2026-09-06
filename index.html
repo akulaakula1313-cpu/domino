@@ -3,155 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ДОМИНО от SANI GROUP</title>
+    <title>Домино Ру</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <audio id="bgMusic" loop src="bg-music.mp3"></audio>
-    <canvas id="fxCanvas"></canvas>
-
-    <div id="menuScreen" class="container-box">
-        <h1>ДОМИНО от SANI GROUP</h1>
-        <div class="creator-tag" onclick="openAboutModal()">ИНФОРМАЦИЯ О СТУДИИ ℹ️</div>
-        
-        <button class="menu-btn" onclick="startGame('bot')">🤖 ИГРАТЬ С БОТОМ</button>
-        <button class="menu-btn" onclick="createOnlineRoom()">✨ СОЗДАТЬ СТОЛ (ONLINE)</button>
-        
-        <div class="input-group">
-            <input type="text" inputmode="numeric" pattern="[0-9]*" id="roomCodeInput" class="code-input" placeholder="ВВЕДИТЕ 4 ЦИФРЫ КОДА" maxlength="4">
-            <button class="menu-btn secondary" onclick="joinOnlineRoom()">🔌 ПОДКЛЮЧИТЬСЯ К СТОЛУ</button>
+    <div id="menuScreen" class="menu-container">
+        <div class="menu-title-row">
+            <h1 class="menu-main-title">Домино Ру</h1>
+            <div class="currency-panel">
+                <div class="currency-item">🪙 <span id="menuCoins">0</span></div>
+                <div class="currency-item">💎 <span id="menuGems">0</span></div>
+            </div>
+            <button class="share-btn"> Share 🔍 </button>
         </div>
-
-        <button class="menu-btn secondary" style="margin-top: 20px;" onclick="toggleRules()">📜 ПРАВИЛА ИГРЫ</button>
         
-        <div id="rulesPanel" class="rules-panel">
-            <h3 style="margin-top:0; color:var(--accent-gold);">Правила игры («Козёл»):</h3>
-            • Каждому игроку раздается по 7 костяшек.<br>
-            • Ходы делаются по очереди. Нужно состыковать цифру кости с одним из краев змейки на поле.<br>
-            • <b>Базар:</b> Если ходить нечем, вы обязаны тянуть кости из базара, пока не найдете нужную.<br>
-            • <b>Пас:</b> Если базар пуст, а ходить нечем, нажимайте кнопку «ПАС».<br>
-            • <b>Рыба:</b> Блокировка поля, когда ходить не может никто. Побеждает тот, у кого меньше очков в руке.
+        <div class="menu-grid">
+            <div class="menu-column">
+                <button class="menu-item-btn" onclick="openBotSelectModal()">💻 Играть с компьютером</button>
+                <button class="menu-item-btn" onclick="alert('Онлайн комната создается через вебсокет')">🌐 Играть онлайн</button>
+                <button class="menu-item-btn" onclick="alert('Режим вдвоем на одном экране настраивается')">👥 Играть вдвоём</button>
+                <button class="menu-item-btn outlined">🎮 Наши игры</button>
+            </div>
+            <div class="menu-column">
+                <button class="menu-item-btn gold-accent" onclick="openStoreModal()">🛒 Магазин</button>
+                <button class="menu-item-btn gold-accent" onclick="document.getElementById('bonusModal').style.display='flex'">🎁 Бонусы</button>
+                <button class="menu-item-btn gold-accent" onclick="toggleRules()">❓ Правила</button>
+                <button class="menu-item-btn gold-accent" onclick="openFullProfileModal()">👤 Профиль</button>
+                <button class="menu-item-btn gold-accent" onclick="alert('Загрузка таблицы лидеров...')">🏅 Лидеры</button>
+                <button class="menu-item-btn gold-accent" onclick="openDesignModal()">🎨 Дизайн</button>
+            </div>
+        </div>
+        <button class="menu-chat-btn" onclick="openGlobalChatModal()">💬 Открыть глобальный чат игры</button>
+    </div>
+
+    <div id="gameScreen" class="modern-game-screen" style="display: none;">
+        <div class="table-area-container">
+            <button class="table-home-btn" onclick="backToMenu()">🏠</button>
+            <div class="canvas-wrapper-box">
+                <canvas id="boardCanvas" width="800" height="600"></canvas>
+            </div>
+        </div>
+        <div class="game-control-sidebar">
+            <div class="sidebar-player-card">
+                <div class="sb-player-avatar-box">👩‍🦰</div>
+                <div class="sb-player-info">
+                    <div class="sb-player-name" id="sbOpponentName">СОПЕРНИК</div>
+                    <div class="sb-player-rank">1000 📊</div>
+                </div>
+                <div class="sb-player-score-badge">⭐ 0</div>
+            </div>
+            <div class="table-chat-container">
+                <div id="bazarCounter" style="color:#eab308; font-weight:bold; font-size:12px; margin-bottom:5px; text-align:center;">БАЗАР: --</div>
+                <div class="table-chat-messages" id="tableChatMessages"></div>
+                <div class="table-chat-input-row">
+                    <input type="text" id="tableChatInput" placeholder="Написать...">
+                    <button onclick="sendTableChatMessage()">↩</button>
+                </div>
+            </div>
+            <div class="sidebar-buttons-zone">
+                <div class="sb-buttons-row">
+                    <button class="sb-action-btn disabled">Назад ↩</button>
+                    <button class="sb-action-btn green-accent-btn" id="tableHintBtn" onclick="buyHintMidGame()">Подсказка 💡 <span style="color:#a3e635;">💎 1</span></button>
+                </div>
+                <button class="sb-long-btn" onclick="openStoreModal()">Магазин 🛒</button>
+                <div class="sb-buttons-row">
+                    <button class="sb-action-btn secondary-style" onclick="toggleRules()">Правила ?</button>
+                    <button class="sb-action-btn secondary-style" onclick="backToMenu()">Отменить 🏳️</button>
+                </div>
+            </div>
+            <div class="sidebar-player-card">
+                <div class="sb-player-avatar-box">🐳</div>
+                <div class="sb-player-info">
+                    <div class="sb-player-name">ВЫ</div>
+                    <div class="sb-player-rank">⭐ <span id="sbMeStars">1</span></div>
+                </div>
+                <div class="sb-player-score-badge">⭐ 0</div>
+            </div>
         </div>
     </div>
 
-    <div id="waitingScreen" class="container-box" style="display: none;">
-        <h1>СТОЛ СОЗДАН</h1>
-        <div class="creator-tag">by SANI GROUP</div>
-        <p style="color: #a1a1aa; margin-bottom: 5px;">Передайте этот цифровой код другу:</p>
-        
-        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 15px 0;">
-            <div id="generatedCode" class="room-code-display" style="margin:0;">----</div>
-            <button onclick="copyRoomCode()" style="background: #27272a; border: 1px solid #eab308; color: #fef08a; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px;">📋 СКОПИРОВАТЬ</button>
-        </div>
-        
-        <p style="color: #fde047; font-size: 14px; font-weight: bold;">Ожидание подключения соперника...</p>
-        <button class="menu-btn secondary" onclick="backToMenu()">ОТМЕНА</button>
-    </div>
-
-    <div id="gameScreen" class="game-wrapper">
-        <div class="vs-panel">
-            <div class="player-card">
-                <div class="player-avatar">👑</div>
-                <div class="player-name" id="p1Name">ВЫ</div>
+    <div id="bonusModal" class="bonus-modal-overlay" style="display: none;">
+        <div class="bonus-card">
+            <div class="bonus-header"><h2>Ежедневный бонус</h2><span class="bonus-close-x" onclick="closeModal('bonusModal')">✕</span></div>
+            <div class="bonus-grid">
+                <div class="bonus-day-box" id="dayBox1"><div class="day-label">День 1</div>🪙 +10 💎 +1</div>
+                <div class="bonus-day-box" id="dayBox2"><div class="day-label">День 2</div>🪙 +20 💎 +2</div>
+                <div class="bonus-day-box" id="dayBox3"><div class="day-label">День 3</div>🪙 +30 💎 +3</div>
+                <div class="bonus-day-box day-7-special" id="dayBox7"><div class="day-label">День 7</div>🪙 +300 💎 +30</div>
             </div>
-            <div id="bazarCounter" style="color: #eab308; font-weight: bold; font-size: 14px; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 8px;">БАЗАР: 14</div>
-            <div class="player-card">
-                <div class="player-avatar">👑</div>
-                <div class="player-name" id="p2Name">СОПЕРНИК</div>
-            </div>
-        </div>
-
-        <div id="statusUpdate" style="margin-bottom: 10px; font-weight: bold; color: #fde047; font-size: 14px;"></div>
-
-        <div class="board-container">
-            <canvas id="boardCanvas" width="400" height="400"></canvas>
-        </div>
-
-        <div id="dominoActions" style="display: flex; gap: 10px; width: 100%; margin-top: 10px;">
-            <button class="menu-btn" style="margin:0; padding:10px;" onclick="takeFromBazar()">🎰 ВЗЯТЬ ИЗ БАЗАРА</button>
-            <button class="menu-btn secondary" style="margin:0; padding:10px;" onclick="passTurn()">🏳️ ПАС</button>
-        </div>
-
-        <div class="chat-box" id="chatBox">
-            <div class="chat-messages" id="chatMessages"></div>
-            <div class="emoji-bar">
-                <button class="emoji-btn" onclick="sendQuickEmoji('👍')">👍</button>
-                <button class="emoji-btn" onclick="sendQuickEmoji('🔥')">🔥</button>
-                <button class="emoji-btn" onclick="sendQuickEmoji('😂')">😂</button>
-                <button class="emoji-btn" onclick="sendQuickEmoji('🤝')">🤝</button>
-                <button class="emoji-btn" onclick="sendQuickEmoji('🐟')">🐟</button>
-                <button class="emoji-btn" onclick="sendQuickEmoji('😎')">😎</button>
-            </div>
-            <div class="chat-input-row">
-                <input type="text" id="chatInput" placeholder="Сообщение...">
-                <button onclick="sendChatMessage()">ОТПРАВИТЬ</button>
-            </div>
-        </div>
-
-        <div class="controls-row">
-            <button class="ui-btn" onclick="backToMenu()" title="В меню">☰</button>
-            <button class="ui-btn" id="musicToggleBtn" onclick="toggleMusic()" title="Вкл/Выкл Музыку">🎵</button>
-            <button class="ui-btn" onclick="toggleChat()" title="Чат">💬</button>
+            <button class="bonus-claim-btn" onclick="claimDailyBonus()">Благодарю!</button>
         </div>
     </div>
 
-    <div id="gameOverScreen" class="modal-screen">
-        <div class="container-box" style="background: #1c1917;">
-            <div id="resultTitle" class="result-title">КОНЕЦ ИГРЫ</div>
-            <p id="resultText" style="color: #a8a29e; margin-bottom: 25px;">Партия завершена</p>
-            <p id="resultReason" style="color: #eab308; font-weight: bold; margin-bottom: 20px;"></p>
-            <button class="menu-btn" id="rematchBtn" onclick="requestRematch()">🔄 НОВАЯ ИГРА</button>
-            <button class="menu-btn secondary" onclick="backToMenu()">🚪 ВЫЙТИ В МЕНЮ</button>
+    <div id="botSelectModal" class="bonus-modal-overlay" style="display: none;">
+        <div class="bonus-card" style="max-width: 500px;">
+            <div class="bonus-header"><h2>Выбор соперника</h2><span class="bonus-close-x" onclick="closeModal('botSelectModal')">✕</span></div>
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:15px;">
+                <div class="bot-select-card" onclick="selectBotAndStart('Лиана Н', 1000, '👩‍🦰', 'easy')">👩‍🦰 Лиана Н (1000)</div>
+                <div class="bot-select-card" onclick="selectBotAndStart('Зосима С.', 1300, '👴', 'easy')">👴 Зосима С. (1300)</div>
+                <div class="bot-select-card" onclick="selectBotAndStart('Юпитер', 2350, '👮', 'expert')">👮 Юпитер (2350)</div>
+            </div>
         </div>
     </div>
 
-    <div id="aboutModal" class="about-modal">
-        <div class="about-card">
-            <button class="about-close" onclick="closeAboutModal()">✕</button>
-            <div class="suits">♠ ♥ ♦ ♣</div>
-            <div class="about-title">SANI GROUP</div>
-            <div class="about-subtitle">Команда основателей и разработчиков</div>
-            <div class="about-desc">
-                Мы создали эту интерактивную версию культовой настольной игры ДОМИНО, чтобы вы могли с максимальным комфортом играть по сети с друзьями по всему миру или тренироваться в битвах с умными ботами.
+    <div id="matchSetupModal" class="bonus-modal-overlay" style="display: none;">
+        <div class="bonus-card" style="max-width: 400px; text-align: left;">
+            <div class="bonus-header"><h2>Настройка матча</h2><span class="bonus-close-x" onclick="closeModal('matchSetupModal')">✕</span></div>
+            <p id="setupBotName" style="font-weight:bold; margin:10px 0;"></p>
+            <button id="hintsToggleBtn" class="setup-toggle-btn" onclick="useHints=!useHints">💡 Включить подсказки (💎 1)</button>
+            <div style="margin: 15px 0;">
+                <label><input type="checkbox" id="penalty66Check" checked> Штраф за 6-6 (+25)</label><br><br>
+                <label><input type="checkbox" id="penalty00Check"> Штраф за 0-0 (+25)</label>
             </div>
-            <div class="features-row">
-                <div class="feature-badge">⚡ Стабильный сокет</div>
-                <div class="feature-badge">🎨 Стильный дизайн</div>
-                <div class="feature-badge">⚙️ Честные правила</div>
-            </div>
-            <div class="copyright">© SANI GROUP Studio. Все права защищены.</div>
+            <button class="bonus-claim-btn" style="width:100%;" onclick="confirmSetupAndStart()">Начать игру</button>
         </div>
     </div>
 
-    <script src="client.js"></script>
-    <script>
-        function toggleRules() {
-            const panel = document.getElementById('rulesPanel');
-            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-        }
-        function createOnlineRoom() {
-            document.getElementById('menuScreen').style.display = 'none';
-            document.getElementById('waitingScreen').style.display = 'block';
-            ws.send(JSON.stringify({ type: 'CREATE_ROOM' }));
-        }
-        function joinOnlineRoom() {
-            const code = document.getElementById('roomCodeInput').value.trim();
-            if(code.length !== 4) { alert('Введите 4 цифры кода стола!'); return; }
-            ws.send(JSON.stringify({ type: 'JOIN_ROOM', roomCode: code }));
-        }
-        function openAboutModal() { document.getElementById('aboutModal').style.display = 'flex'; }
-        function closeAboutModal() { document.getElementById('aboutModal').style.display = 'none'; }
-        function copyRoomCode() {
-            const codeText = document.getElementById('generatedCode').innerText;
-            if(codeText === '----') return;
-            navigator.clipboard.writeText(codeText).then(() => {
-                alert('Цифровой код стола успешно скопирован: ' + codeText);
-            }).catch(err => { console.error(err); });
-        }
-        document.getElementById('chatInput').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') { sendChatMessage(); }
-        });
-    </script>
+    <div id="fullProfileModal" class="bonus-modal-overlay" style="display: none;">
+        <div class="bonus-card" style="text-align: left;">
+            <div class="bonus-header"><h2 id="profNickName">Профиль</h2><span class="bonus-close-x" onclick="closeModal('fullProfileModal')">✕</span></div>
+            <div class="profile-mode-tabs">
+                <button class="prof-tab-btn active" id="profTabBot" onclick="switchProfileMode('bot')">💻 С компьютером</button>
+                <button class="prof-tab-btn" id="profTabOnline" onclick="switchProfileMode('online')">🌐 Онлайн</button>
+            </div>
+            <div class="profile-rating-row">
+                <div>Макс: <span id="profMaxRating">1000</span></div>
+                <div>Текущий: <span id="profCurrentRating">1000</span></div>
+                <div>Мин: <span id="profMinRating">1000</span></div>
+            </div>
+            <p>Очки звезд: <b id="profStarsCount">0</b> ⭐</p>
+            <p>Сыграно матчей: <b id="profGamesCount">0</b></p>
+            <div style="display:flex; gap:10px; font-size:12px; font-weight:bold;">
+                <div class="winloss-box green">Побед: <span id="countWins">0</span></div>
+                <div class="winloss-box grey">Ничьих: <span id="countDraws">0</span></div>
+                <div class="winloss-box red">Поражений: <span id="countLosses">0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="designModal" class="bonus-modal-overlay" style="display: none;">
+        <div class="bonus-card" style="max-width: 500px;">
+            <div class="bonus-header"><h2>Настройки доски</h2><span class="bonus-close-x" onclick="closeModal('designModal')">✕</span></div>
+            <div class="design-grid" id="designGridContainer"></div>
+        </div>
+    </div>
+
+    <div id="globalChatModal" class="bonus-modal-overlay" style="display: none;">
+        <div class="bonus-card" style="display:flex; flex-direction:column; height:450px;">
+            <div class="bonus-header"><h2>Глобальный чат 💬</h2><span class="bonus-close-x" onclick="closeModal('globalChatModal')">✕</span></div>
+            <div id="globalChatMessages" style="flex-grow:1; background:#141318; padding:10px; overflow-y:auto; margin:10px 0; border-radius:6px; text-align:left;"></div>
+            <div class="table-chat-input-row"><input type="text" id="globalChatInput" placeholder="Текст..."><button onclick="sendGlobalChatMessage()">Отправить</button></div>
+        </div>
+    </div>
+
+    <div id="storeModal" class="bonus-modal-overlay" style="display: none;">
+        <div class="bonus-card">
+            <div class="bonus-header"><h2>Магазин валюты</h2><span class="bonus-close-x" onclick="closeModal('storeModal')">✕</span></div>
+            <div style="margin: 20px 0; text-align: left; display: flex; flex-direction: column; gap: 10px;">
+                <div style="background: #141318; padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                    <span>🪙 +1,000 монет</span>
+                    <button class="bonus-claim-btn" style="padding: 6px 12px;" onclick="alert('Покупка совершена!')">99 YAN</button>
+                </div>
+                <div style="background: #141318; padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                    <span>💎 +100 алмазов</span>
+                    <button class="bonus-claim-btn" style="padding: 6px 12px;" onclick="alert('Покупка совершена!')">199 YAN</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
 </body>
 </html>
