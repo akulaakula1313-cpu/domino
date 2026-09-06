@@ -1,13 +1,15 @@
 {
-  "name": "domino-sani-group",
+  "name": "domino-ru",
   "version": "1.0.0",
-  "description": "Premium Domino Online by SANI GROUP",
+  "description": "Игра Домино Ру с ботами и глобальным чатом",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "ws": "^8.17.0"
-  }
+    "ws": "^8.16.0"
+  },
+  "author": "",
+  "license": "ISC"
 }

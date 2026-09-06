@@ -87,14 +87,31 @@ app.post('/api/claim-bonus', (req, res) => {
     if (!playerId || !playersDB[playerId]) return res.status(400).json({ error: 'Игрок не найден' });
 
     const player = playersDB[playerId];
-    const currentDay = player.bonusDay || 1;
-    const rewards = { 1: { coins: 10, gems: 1 }, 2: { coins: 20, gems: 2 }, 3: { coins: 30, gems: 3 }, 4: { coins: 40, gems: 4 }, 5: { coins: 50, gems: 5 }, 6: { coins: 100, gems: 10 }, 7: { coins: 300, gems: 30 } };
-    const prize = rewards[currentDay] || { coins: 10, gems: 1 };
+    const now = new Date().getTime();
+    const oneDayInMs = 24 * 60 * 60 * 1000;
 
+    if (player.lastBonusTime && (now - player.lastBonusTime) < oneDayInMs) {
+        const timeLeft = oneDayInMs - (now - player.lastBonusTime);
+        const hoursLeft = Math.ceil(timeLeft / (1000 * 60 * 60));
+        return res.json({ 
+            success: false, 
+            message: `Вы уже забрали сегодняшний бонус! Следующий будет доступен через ${hoursLeft} ч.`,
+            account: player 
+        });
+    }
+
+    const currentDay = player.bonusDay || 1;
+    const rewards = { 
+        1: { coins: 10, gems: 1 }, 2: { coins: 20, gems: 2 }, 3: { coins: 30, gems: 3 }, 
+        4: { coins: 40, gems: 4 }, 5: { coins: 50, gems: 5 }, 6: { coins: 100, gems: 10 }, 7: { coins: 300, gems: 30 } 
+    };
+    
+    const prize = rewards[currentDay] || { coins: 10, gems: 1 };
     player.coins += prize.coins;
     player.gems += prize.gems;
-    player.lastBonusTime = new Date().getTime();
+    player.lastBonusTime = now;
     player.bonusDay = currentDay >= 7 ? 1 : currentDay + 1;
+    
     saveDB();
     res.json({ success: true, account: player, prize });
 });
@@ -104,7 +121,7 @@ app.post('/api/buy-design', (req, res) => {
     const player = playersDB[playerId];
     if (!player) return res.status(400).json({ error: 'Ошибка' });
     if (player.ownedDesigns.includes(designId)) return res.json({ success: false, message: 'Уже куплено!' });
-    if (player.gems < price) return res.json({ success: false, message: 'Недостаточно алмазов! 💎' });
+    if (player.gems < price) return res.json({ success: false, message: 'Недостаточно алмазов!' });
 
     player.gems -= price;
     player.ownedDesigns.push(designId);
@@ -159,15 +176,6 @@ wss.on('connection', (ws) => {
                 ws.send(JSON.stringify({ type: 'GAME_STARTED', color: 'w', mode: 'bot', hand: rooms[currentRoomCode].hands.w, line: [], turn: 'w', bazarCount: rooms[currentRoomCode].bazar.length }));
             }
 
-            if (data.type === 'TAKE_BAZAR' && currentRoomCode) {
-                const room = rooms[currentRoomCode];
-                if (!room || room.turn !== myColor) return;
-                if (room.bazar.length > 0 && !hasAnyValidMoves(room.hands[myColor], room.leftValue, room.rightValue)) {
-                    room.hands[myColor].push(room.bazar.pop());
-                    broadcastState(room);
-                }
-            }
-
             if (data.type === 'MAKE_MOVE' && currentRoomCode) {
                 const room = rooms[currentRoomCode];
                 if (!room || room.turn !== myColor) return;
@@ -216,22 +224,22 @@ function makeBotAiMove(room) {
     let hand = room.hands.b; let moved = false;
     for (let i = 0; i < hand.length; i++) {
         let bone = hand[i];
-        if (bone[0] === room.leftValue || bone[1] === room.leftValue) {
-            if (bone[1] === room.leftValue) { room.line.unshift(bone); room.leftValue = bone[0]; }
-            else { room.line.unshift([bone[1], bone[0]]); room.leftValue = bone[1]; }
-            hand.splice(i, 1); moved = true; break;
-        } else if (bone[0] === room.rightValue || bone[1] === room.rightValue) {
-            if (bone[0] === room.rightValue) { room.line.push(bone); room.rightValue = bone[1]; }
-            else { room.line.push([bone[1], bone[0]]); room.rightValue = bone[0]; }
-            hand.splice(i, 1); moved = true; break;
-        }
+        if (bone[1] === room.leftValue) { room.line.unshift(bone); room.leftValue = bone[0]; hand.splice(i, 1); moved = true; break; }
+        else if (bone[0] === room.leftValue) { room.line.unshift([bone[1], bone[0]]); room.leftValue = bone[1]; hand.splice(i, 1); moved = true; break; }
+        else if (bone[0] === room.rightValue) { room.line.push(bone); room.rightValue = bone[1]; hand.splice(i, 1); moved = true; break; }
+        else if (bone[1] === room.rightValue) { room.line.push([bone[1], bone[0]]); room.rightValue = bone[0]; hand.splice(i, 1); moved = true; break; }
     }
     if (moved) {
         if (room.hands.b.length === 0) sendGameOver(room, 'b', 'Бот победил!');
         else { room.turn = 'w'; broadcastState(room); }
     } else {
-        if (room.bazar.length > 0) { room.hands.b.push(room.bazar.pop()); makeBotAiMove(room); }
-        else { room.turn = 'w'; checkRoundEndOrContinue(room); }
+        if (room.bazar.length > 0) { 
+            room.hands.b.push(room.bazar.pop()); 
+            makeBotAiMove(room); 
+        } else { 
+            room.turn = 'w'; 
+            checkRoundEndOrContinue(room); 
+        }
     }
 }
 

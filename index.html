@@ -8,6 +8,9 @@
 </head>
 <body>
 
+    <canvas id="fxCanvas"></canvas>
+
+    <!-- ГЛАВНОЕ МЕНЮ ИГРЫ -->
     <div id="menuScreen" class="menu-container">
         <div class="menu-title-row">
             <h1 class="menu-main-title">Домино Ру</h1>
@@ -21,22 +24,23 @@
         <div class="menu-grid">
             <div class="menu-column">
                 <button class="menu-item-btn" onclick="openBotSelectModal()">💻 Играть с компьютером</button>
-                <button class="menu-item-btn" onclick="alert('Онлайн комната создается через вебсокет')">🌐 Играть онлайн</button>
-                <button class="menu-item-btn" onclick="alert('Режим вдвоем на одном экране настраивается')">👥 Играть вдвоём</button>
+                <button class="menu-item-btn" onclick="alert('Режим онлайн в разработке')">🌐 Играть онлайн</button>
+                <button class="menu-item-btn" onclick="alert('Режим для двоих в разработке')">👥 Играть вдвоём</button>
                 <button class="menu-item-btn outlined">🎮 Наши игры</button>
             </div>
             <div class="menu-column">
                 <button class="menu-item-btn gold-accent" onclick="openStoreModal()">🛒 Магазин</button>
                 <button class="menu-item-btn gold-accent" onclick="document.getElementById('bonusModal').style.display='flex'">🎁 Бонусы</button>
-                <button class="menu-item-btn gold-accent" onclick="toggleRules()">❓ Правила</button>
+                <button class="menu-item-btn gold-accent" onclick="openRulesModal()">❓ Правила</button>
                 <button class="menu-item-btn gold-accent" onclick="openFullProfileModal()">👤 Профиль</button>
-                <button class="menu-item-btn gold-accent" onclick="alert('Загрузка таблицы лидеров...')">🏅 Лидеры</button>
+                <button class="menu-item-btn gold-accent" onclick="openLeadersModal()">🏅 Лидеры</button>
                 <button class="menu-item-btn gold-accent" onclick="openDesignModal()">🎨 Дизайн</button>
             </div>
         </div>
         <button class="menu-chat-btn" onclick="openGlobalChatModal()">💬 Открыть глобальный чат игры</button>
     </div>
 
+    <!-- ИГРОВОЙ СТОЛ -->
     <div id="gameScreen" class="modern-game-screen" style="display: none;">
         <div class="table-area-container">
             <button class="table-home-btn" onclick="backToMenu()">🏠</button>
@@ -68,7 +72,7 @@
                 </div>
                 <button class="sb-long-btn" onclick="openStoreModal()">Магазин 🛒</button>
                 <div class="sb-buttons-row">
-                    <button class="sb-action-btn secondary-style" onclick="toggleRules()">Правила ?</button>
+                    <button class="sb-action-btn secondary-style" onclick="openRulesModal()">Правила ?</button>
                     <button class="sb-action-btn secondary-style" onclick="backToMenu()">Отменить 🏳️</button>
                 </div>
             </div>
@@ -83,6 +87,7 @@
         </div>
     </div>
 
+    <!-- ОКНА И МОДАЛКИ -->
     <div id="bonusModal" class="bonus-modal-overlay" style="display: none;">
         <div class="bonus-card">
             <div class="bonus-header"><h2>Ежедневный бонус</h2><span class="bonus-close-x" onclick="closeModal('bonusModal')">✕</span></div>
@@ -110,9 +115,9 @@
     <div id="matchSetupModal" class="bonus-modal-overlay" style="display: none;">
         <div class="bonus-card" style="max-width: 400px; text-align: left;">
             <div class="bonus-header"><h2>Настройка матча</h2><span class="bonus-close-x" onclick="closeModal('matchSetupModal')">✕</span></div>
-            <p id="setupBotName" style="font-weight:bold; margin:10px 0;"></p>
+            <p id="setupBotName" style="font-weight:bold; margin:10px 0; color:#fff;"></p>
             <button id="hintsToggleBtn" class="setup-toggle-btn" onclick="useHints=!useHints">💡 Включить подсказки (💎 1)</button>
-            <div style="margin: 15px 0;">
+            <div style="margin: 15px 0; color:#fff;">
                 <label><input type="checkbox" id="penalty66Check" checked> Штраф за 6-6 (+25)</label><br><br>
                 <label><input type="checkbox" id="penalty00Check"> Штраф за 0-0 (+25)</label>
             </div>
@@ -121,8 +126,9 @@
     </div>
 
     <div id="fullProfileModal" class="bonus-modal-overlay" style="display: none;">
-        <div class="bonus-card" style="text-align: left;">
-            <div class="bonus-header"><h2 id="profNickName">Профиль</h2><span class="bonus-close-x" onclick="closeModal('fullProfileModal')">✕</span></div>
+        <div class="bonus-card" style="text-align: left; max-width: 460px;">
+            <div class="bonus-header"><h2>Профиль игрока</h2><span class="bonus-close-x" onclick="closeModal('fullProfileModal')">✕</span></div>
+            <p style="color:#fff; margin-top:15px;">Никнейм: <b id="profNickName" style="color:#f59e0b;">Загрузка...</b></p>
             <div class="profile-mode-tabs">
                 <button class="prof-tab-btn active" id="profTabBot" onclick="switchProfileMode('bot')">💻 С компьютером</button>
                 <button class="prof-tab-btn" id="profTabOnline" onclick="switchProfileMode('online')">🌐 Онлайн</button>
@@ -132,9 +138,9 @@
                 <div>Текущий: <span id="profCurrentRating">1000</span></div>
                 <div>Мин: <span id="profMinRating">1000</span></div>
             </div>
-            <p>Очки звезд: <b id="profStarsCount">0</b> ⭐</p>
-            <p>Сыграно матчей: <b id="profGamesCount">0</b></p>
-            <div style="display:flex; gap:10px; font-size:12px; font-weight:bold;">
+            <p style="color:#fff;">Очки звезд: <b id="profStarsCount">0</b> ⭐</p>
+            <p style="color:#fff;">Сыграно матчей: <b id="profGamesCount">0</b></p>
+            <div style="display:flex; gap:10px;">
                 <div class="winloss-box green">Побед: <span id="countWins">0</span></div>
                 <div class="winloss-box grey">Ничьих: <span id="countDraws">0</span></div>
                 <div class="winloss-box red">Поражений: <span id="countLosses">0</span></div>
@@ -145,30 +151,49 @@
     <div id="designModal" class="bonus-modal-overlay" style="display: none;">
         <div class="bonus-card" style="max-width: 500px;">
             <div class="bonus-header"><h2>Настройки доски</h2><span class="bonus-close-x" onclick="closeModal('designModal')">✕</span></div>
-            <div class="design-grid" id="designGridContainer"></div>
+            <div class="design-grid" id="designGridContainer" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <div id="leadersModal" class="bonus-modal-overlay" style="display: none;">
+        <div class="bonus-card" style="max-width: 450px;">
+            <div class="bonus-header"><h2>Таблица лидеров 👑</h2><span class="bonus-close-x" onclick="closeModal('leadersModal')">✕</span></div>
+            <div class="leaders-list-box" id="leadersListContent" style="margin-top:15px; text-align:left;">
+                <div>1. SaniPark — 1500 📊</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="rulesModal" class="bonus-modal-overlay" style="display: none;">
+        <div class="bonus-card" style="max-width: 450px; text-align: left; color: #fff;">
+            <div class="bonus-header"><h2>Правила игры ❓</h2><span class="bonus-close-x" onclick="closeModal('rulesModal')">✕</span></div>
+            <div style="margin-top: 15px; font-size: 14px; line-height: 1.5;">
+                <p>1. Игроки по очереди выкладывают кости на стол.</p>
+                <p>2. Цифры на соприкасающихся половинках костей должны совпадать.</p>
+                <p>3. Если у вас нет подходящей кости, вы должны брать кости из «Базара».</p>
+                <p>4. Выигрывает тот, кто первым выставит все свои домино.</p>
+            </div>
+            <button class="bonus-claim-btn" style="width: 100%; margin-top: 15px;" onclick="closeModal('rulesModal')">Понятно</button>
         </div>
     </div>
 
     <div id="globalChatModal" class="bonus-modal-overlay" style="display: none;">
-        <div class="bonus-card" style="display:flex; flex-direction:column; height:450px;">
+        <div class="bonus-card" style="max-width: 500px; display: flex; flex-direction: column; height: 80vh;">
             <div class="bonus-header"><h2>Глобальный чат 💬</h2><span class="bonus-close-x" onclick="closeModal('globalChatModal')">✕</span></div>
-            <div id="globalChatMessages" style="flex-grow:1; background:#141318; padding:10px; overflow-y:auto; margin:10px 0; border-radius:6px; text-align:left;"></div>
-            <div class="table-chat-input-row"><input type="text" id="globalChatInput" placeholder="Текст..."><button onclick="sendGlobalChatMessage()">Отправить</button></div>
+            <div id="globalChatMessages" style="flex-grow: 1; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 12px; padding: 10px; margin: 15px 0; text-align: left; font-size: 14px;"></div>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="globalChatInput" style="flex-grow: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: #fff; padding: 12px; border-radius: 8px;" placeholder="Сообщение...">
+                <button class="bonus-claim-btn" onclick="sendGlobalChatMessage()">Отправить</button>
+            </div>
         </div>
     </div>
 
     <div id="storeModal" class="bonus-modal-overlay" style="display: none;">
-        <div class="bonus-card">
+        <div class="bonus-card" style="max-width: 400px;">
             <div class="bonus-header"><h2>Магазин валюты</h2><span class="bonus-close-x" onclick="closeModal('storeModal')">✕</span></div>
-            <div style="margin: 20px 0; text-align: left; display: flex; flex-direction: column; gap: 10px;">
-                <div style="background: #141318; padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
-                    <span>🪙 +1,000 монет</span>
-                    <button class="bonus-claim-btn" style="padding: 6px 12px;" onclick="alert('Покупка совершена!')">99 YAN</button>
-                </div>
-                <div style="background: #141318; padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
-                    <span>💎 +100 алмазов</span>
-                    <button class="bonus-claim-btn" style="padding: 6px 12px;" onclick="alert('Покупка совершена!')">199 YAN</button>
-                </div>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+                <button class="menu-item-btn gold-accent" onclick="buyCurrencyServer(1000, 0)">🪙 +1,000 монет — 99 YAN</button>
+                <button class="menu-item-btn gold-accent" onclick="buyCurrencyServer(0, 100)">💎 +100 алмазов — 199 YAN</button>
             </div>
         </div>
     </div>

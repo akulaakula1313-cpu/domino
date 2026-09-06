@@ -36,7 +36,8 @@ function initPlayerAccount() {
         if (!data.account.lastBonusTime || (now - parseInt(data.account.lastBonusTime)) >= 86400000) {
             document.getElementById('bonusModal').style.display = 'flex';
         }
-    });
+    })
+    .catch(err => console.error("Ошибка инициализации:", err));
 }
 
 function applySavedDesignTheme(designId) {
@@ -55,13 +56,26 @@ function updateMenuBalanceDisplay(coins, gems) {
 function claimDailyBonus() {
     fetch('/api/claim-bonus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playerId: currentPlayerId }) })
     .then(res => res.json()).then(data => {
-        updateMenuBalanceDisplay(data.account.coins, data.account.gems);
-        closeModal('bonusModal');
-        alert(`Получен ежедневный бонус!`);
+        if (data.success) {
+            updateMenuBalanceDisplay(data.account.coins, data.account.gems);
+            closeModal('bonusModal');
+            alert(`🎉 Получен ежедневный бонус!`);
+        } else {
+            alert(data.message);
+            closeModal('bonusModal');
+        }
     });
 }
 
+function buyCurrencyServer(addCoins, addGems) {
+    alert("Покупка успешно совершена через YAN!");
+    backToMenu();
+}
+
 function openBotSelectModal() { document.getElementById('botSelectModal').style.display = 'flex'; }
+function openRulesModal() { document.getElementById('rulesModal').style.display = 'flex'; }
+function openLeadersModal() { document.getElementById('leadersModal').style.display = 'flex'; }
+
 function selectBotAndStart(name, rank, avatar, difficulty) {
     selectedBotName = name;
     closeModal('botSelectModal');
@@ -85,7 +99,6 @@ function openFullProfileModal() {
     .then(res => res.json()).then(data => {
         localCacheAccountData = data.account;
         document.getElementById('profNickName').innerText = localCacheAccountData.name;
-        document.getElementById('profRankName').innerText = localCacheAccountData.rankName;
         document.getElementById('profStarsCount').innerText = localCacheAccountData.stars;
         switchProfileMode('bot');
         document.getElementById('fullProfileModal').style.display = 'flex';
@@ -108,7 +121,9 @@ function switchProfileMode(mode) {
 function openDesignModal() {
     fetch('/api/get-account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playerId: currentPlayerId }) })
     .then(res => res.json()).then(data => {
-        const container = document.getElementById('designGridContainer'); container.innerHTML = '';
+        const container = document.getElementById('designGridContainer'); 
+        if (!container) return;
+        container.innerHTML = '';
         designsConfig.forEach(d => {
             const isOwned = data.account.ownedDesigns.includes(d.id);
             const isActive = data.account.currentDesign === d.id;
@@ -130,26 +145,31 @@ function buyDesignServer(designId, price) {
 }
 
 function drawBone(x, y, bone, isSelected, isHorizontal) {
-    let w = isHorizontal ? 50 : 26; let h = isHorizontal ? 26 : 50;
+    let w = isHorizontal ? 52 : 28; let h = isHorizontal ? 28 : 52;
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.15)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 4;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'; ctx.shadowBlur = isSelected ? 16 : 8; ctx.shadowOffsetY = isSelected ? 12 : 5;
     let g = ctx.createLinearGradient(x, y, x + w, y + h);
-    if(isSelected) { g.addColorStop(0, '#fffbeb'); g.addColorStop(1, '#fef08a'); }
+    if(isSelected) { g.addColorStop(0, '#fffdf0'); g.addColorStop(1, '#fde047'); }
     else { g.addColorStop(0, activeDesignTheme.boneGradStart); g.addColorStop(1, activeDesignTheme.boneGradEnd); }
     ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(x, y, w, h, 6); ctx.fill(); ctx.restore();
 
-    ctx.strokeStyle = '#d6cfc7'; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(x, y, w, h, 6); ctx.stroke();
-    ctx.strokeStyle = '#b0a89f'; ctx.lineWidth = 1; ctx.beginPath();
-    if (isHorizontal) { ctx.moveTo(x + w/2, y+2); ctx.lineTo(x + w/2, y + h-2); }
-    else { ctx.moveTo(x+2, y + h/2); ctx.lineTo(x + w-2, y + h/2); }
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, 6); ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1.5; ctx.beginPath();
+    if (isHorizontal) { ctx.moveTo(x + w/2, y + 2); ctx.lineTo(x + w/2, y + h - 2); }
+    else { ctx.moveTo(x + 2, y + h/2); ctx.lineTo(x + w - 2, y + h/2); }
     ctx.stroke();
 
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)'; ctx.beginPath();
+    ctx.roundRect(x + 2, y + 2, w - 4, (h / 2) - 2, { tl: 4, tr: 4, bl: 0, br: 0 }); ctx.fill();
+
     function drawDots(cx, cy, count) {
-        ctx.fillStyle = activeDesignTheme.dotsColor; let r = 2.2; let d = 5.5;
+        ctx.fillStyle = activeDesignTheme.dotsColor; let r = 2.4; let d = 6;
+        ctx.save(); ctx.shadowColor = 'rgba(255,255,255,0.4)'; ctx.shadowOffsetY = 0.5; ctx.shadowBlur = 0.5;
         if ([1, 3, 5].includes(count)) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill(); }
         if ([2, 3, 4, 5, 6].includes(count)) { ctx.beginPath(); ctx.arc(cx - d, cy - d, r, 0, Math.PI*2); ctx.arc(cx + d, cy + d, r, 0, Math.PI*2); ctx.fill(); }
         if ([4, 5, 6].includes(count)) { ctx.beginPath(); ctx.arc(cx + d, cy - d, r, 0, Math.PI*2); ctx.arc(cx - d, cy + d, r, 0, Math.PI*2); ctx.fill(); }
         if (count === 6) { ctx.beginPath(); ctx.arc(cx - d, cy, r, 0, Math.PI*2); ctx.arc(cx + d, cy, r, 0, Math.PI*2); ctx.fill(); }
+        ctx.restore();
     }
     if (isHorizontal) { drawDots(x + w/4, y + h/2, bone[0]); drawDots(x + (3*w)/4, y + h/2, bone[1]); }
     else { drawDots(x + w/2, y + h/4, bone[0]); drawDots(x + w/2, y + (3*h)/4, bone[1]); }
@@ -164,18 +184,18 @@ function drawGame() {
         gradientBg.addColorStop(0, '#fbcfe8'); gradientBg.addColorStop(0.5, '#fed7aa'); gradientBg.addColorStop(1, '#fcd34d');
         ctx.fillStyle = gradientBg; ctx.fillRect(0, 0, virtualWidth, virtualHeight);
     }
-
-    let startLineY = virtualHeight / 2 - 25; let currentX = 100;
+    
+    let startLineY = (virtualHeight / 2) - 25; let currentX = 100;
     tableLine.forEach(bone => {
         let isDub = bone[0] === bone[1];
         drawBone(currentX, isDub ? startLineY - 12 : startLineY, bone, false, !isDub);
         currentX += isDub ? 32 : 56;
     });
-
+    
     let bCount = myHand.length; let bWidth = 40; let bGap = 8;
     let startHandX = (virtualWidth - (bCount * bWidth + (bCount - 1) * bGap)) / 2;
     for (let i = 0; i < bCount; i++) {
-        drawBone(startHandX + i * (bWidth + bGap), selectedBoneIndex === i ? virtualHeight - 100 : virtualHeight - 85, myHand[i], selectedBoneIndex === i, false);
+        drawBone(startHandX + (i * (bWidth + bGap)), selectedBoneIndex === i ? virtualHeight - 100 : virtualHeight - 85, myHand[i], selectedBoneIndex === i, false);
     }
 }
 
@@ -183,11 +203,12 @@ canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
     const vx = (e.clientX - rect.left) * (virtualWidth / rect.width);
     const vy = (e.clientY - rect.top) * (virtualHeight / rect.height);
+    
     if (vy > virtualHeight - 100) {
         let bCount = myHand.length; let bWidth = 40; let bGap = 8;
         let startX = (virtualWidth - (bCount * bWidth + (bCount - 1) * bGap)) / 2;
         for (let i = 0; i < bCount; i++) {
-            let x1 = startX + i * (bWidth + bGap);
+            let x1 = startX + (i * (bWidth + bGap));
             if (vx >= x1 && vx <= x1 + bWidth) { selectedBoneIndex = i; drawGame(); return; }
         }
     } else if (selectedBoneIndex !== null) {
@@ -202,17 +223,31 @@ ws.onmessage = (event) => {
     if (data.type === 'GAME_STARTED' || data.type === 'STATE_UPDATE') {
         menuScreen.style.display = 'none'; gameScreen.style.display = 'flex';
         myHand = data.hand; tableLine = data.line; currentTurn = data.turn; if (data.color) myColor = data.color;
-        document.getElementById('bazarCounter').innerText = 'БАЗАР: ' + data.bazarCount;
+        const bCounter = document.getElementById('bazarCounter');
+        if (bCounter) bCounter.innerText = 'БАЗАР: ' + data.bazarCount;
         document.getElementById('sbOpponentName').innerText = selectedBotName.toUpperCase();
         drawGame();
-    } else if (data.type === 'GAME_OVER') { alert('Раунд завершен! ' + data.reason); backToMenu(); }
+    } else if (data.type === 'GAME_OVER') { 
+        alert('Раунд завершен! ' + data.reason); 
+        backToMenu(); 
+    }
 };
 
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 function openStoreModal() { document.getElementById('storeModal').style.display = 'flex'; }
 function backToMenu() { gameScreen.style.display = 'none'; menuScreen.style.display = 'block'; }
 function buyHintMidGame() { alert("Подсказки активированы!"); }
-function toggleRules() { alert("Правила: Состыкуйте одинаковые цифры на краях."); }
+
+function sendTableChatMessage() {
+    const input = document.getElementById('tableChatInput');
+    if (!input || !input.value.trim()) return;
+    const container = document.getElementById('tableChatMessages');
+    if (container) {
+        container.innerHTML += `<div><b>Вы:</b> ${input.value}</div>`;
+        container.scrollTop = container.scrollHeight;
+    }
+    input.value = '';
+}
 
 let globalChatInterval = null;
 function openGlobalChatModal() { 
@@ -223,14 +258,24 @@ function openGlobalChatModal() {
 
 function loadGlobalChatFromServer() {
     fetch('/api/get-global-chat', { method: 'POST' }).then(res => res.json()).then(data => {
-        const container = document.getElementById('globalChatMessages'); container.innerHTML = '';
+        const container = document.getElementById('globalChatMessages'); 
+        if (!container) return;
+        container.innerHTML = '';
         data.messages.forEach(m => { container.innerHTML += `<div><b>${m.senderName}:</b> ${m.text}</div>`; });
     });
 }
 
 function sendGlobalChatMessage() {
     const input = document.getElementById('globalChatInput');
-    fetch('/api/send-global-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playerId: currentPlayerId, text: input.value }) }).then(() => { input.value = ''; loadGlobalChatFromServer(); });
+    if (!input || !input.value.trim()) return;
+    fetch('/api/send-global-chat', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ playerId: currentPlayerId, text: input.value }) 
+    }).then(() => { 
+        input.value = ''; 
+        loadGlobalChatFromServer(); 
+    });
 }
 
 setTimeout(initPlayerAccount, 150);
